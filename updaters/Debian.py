@@ -49,7 +49,7 @@ class Debian(GenericUpdater):
         if not verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback):
             return False
         # Then, use shared check_remote_integrity for hash check
-        sha256_url = f"{DOWNLOAD_PAGE_URL}/SHA256SUMS"
+        sha256_url = f"{DOWNLOAD_PAGE_URL}SHA256SUMS"
         return check_remote_integrity(
             hash_url=sha256_url,
             local_file=local_file,
