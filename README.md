@@ -96,7 +96,7 @@ pipx uninstall sisou2
 Pull requests and issues are welcome!
 See [https://github.com/lostallmymoney/SuperISOUpdater2](https://github.com/lostallmymoney/SuperISOUpdater2) for the latest source and bug tracker.
 
-Props to [JoshuaVandaele](https://github.com/JoshuaVandaele)) for SISOU original : https://github.com/JoshuaVandaele/SuperISOUpdater
+Props to [JoshuaVandaele](https://github.com/JoshuaVandaele) for SISOU original : https://github.com/JoshuaVandaele/SuperISOUpdater
 
 ## License
 
