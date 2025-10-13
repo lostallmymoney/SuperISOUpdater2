@@ -38,8 +38,40 @@ class FreeDOS(GenericUpdater):
         if not success:
             self.logging_callback(f"[{ISOname}] Failed to download archive from {download_link}")
             return None
-        # Integrity check
-        if not self.check_integrity():
+        # Integrity check for the archive (zip file)
+        latest_version = self._get_latest_version()
+        if latest_version is None:
+            self.logging_callback(f"[{ISOname}.install_latest_version] No latest version found.")
+            return None
+        latest_version_str = self._version_to_str(latest_version).lstrip("/")
+        checksums_url = f"{DOWNLOAD_PAGE_URL}/{latest_version_str}/verify.txt"
+        # File size check
+        download_url = self._get_download_link()
+        expected_size = fetch_expected_file_size(download_url)
+        if expected_size is not None:
+            if not archive_path.exists():
+                self.logging_callback(f"[{ISOname}.install_latest_version] Archive does not exist: {archive_path}")
+                return False
+            actual_size = archive_path.stat().st_size
+            if actual_size != expected_size:
+                self.logging_callback(f"[{ISOname}.install_latest_version] Archive size mismatch. Actual: {actual_size}, Expected: {expected_size}")
+                return False
+        resp = robust_get(checksums_url, retries=max(self.retries_count, 5), delay=2, logging_callback=self.logging_callback)
+        if resp is None or getattr(resp, 'status_code', 200) != 200:
+            self.logging_callback(f"[{ISOname}] Could not fetch verify.txt from {checksums_url}")
+            return False
+        try:
+            sha256_sums = next(sums for sums in resp.text.split("\n\n") if "sha256" in sums)
+        except StopIteration:
+            self.logging_callback(f"[{ISOname}] Could not find the sha256 hash in the hash list file")
+            return False
+        sha256_sum = parse_hash(sha256_sums, [self.edition], 0, logging_callback=self.logging_callback)
+        if not sha256_sum:
+            self.logging_callback(f"[{ISOname}.install_latest_version] No sha256 sum found for edition {self.edition}.")
+            return False
+        from updaters.shared.sha256_hash_check import sha256_hash_check
+        if not sha256_hash_check(archive_path, sha256_sum, package_name=ISOname, logging_callback=self.logging_callback):
+            self.logging_callback(f"[{ISOname}.install_latest_version] Archive hash check failed.")
             return False
         # Extract only the ISO or IMG file from the archive using extract_file_from_zip
         import zipfile
@@ -103,34 +135,8 @@ class FreeDOS(GenericUpdater):
 
 
     def check_integrity(self) -> bool | int | None:
-        latest_version = self._get_latest_version()
-        if latest_version is None:
-            return -1
-        latest_version_str = self._version_to_str(latest_version).lstrip("/")
-        checksums_url = f"{DOWNLOAD_PAGE_URL}/{latest_version_str}/verify.txt"
-        local_file = self._get_normalized_file_path(True, latest_version, self.edition).with_suffix(".zip")
-        # File size check
-        download_url = self._get_download_link()
-        expected_size = fetch_expected_file_size(download_url)
-        if expected_size is not None:
-            if not local_file.exists():
-                return False
-            actual_size = local_file.stat().st_size
-            if actual_size != expected_size:
-                return False
-        resp = robust_get(checksums_url, retries=max(self.retries_count, 5), delay=2, logging_callback=self.logging_callback)
-        if resp is None or getattr(resp, 'status_code', 200) != 200:
-            self.logging_callback(f"[{ISOname}] Could not fetch verify.txt from {checksums_url}")
-            return False
-        try:
-            sha256_sums = next(sums for sums in resp.text.split("\n\n") if "sha256" in sums)
-        except StopIteration:
-            self.logging_callback(f"[{ISOname}] Could not find the sha256 hash in the hash list file")
-            return False
-        sha256_sum = parse_hash(sha256_sums, [self.edition], 0, logging_callback=self.logging_callback)
-        if not sha256_sum:
-            return False
-        return sha256_hash_check(local_file, sha256_sum, package_name=ISOname, logging_callback=self.logging_callback)
+        # FreeDOS only provides a hash for the zip archive, not the extracted ISO/IMG
+        return None
 
     def _get_local_file(self) -> Path | None:
         file_path = self._get_normalized_file_path(
