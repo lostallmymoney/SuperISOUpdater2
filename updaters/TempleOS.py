@@ -11,7 +11,7 @@ from functools import cache
 
 DOMAIN = "https://templeos.org"
 DOWNLOAD_PAGE_URL = f"{DOMAIN}/Downloads"
-FILE_NAME = "TempleOS_[[EDITION]]_[[VER]].iso"
+FILE_NAME = "TempleOS_[[EDITION]]_[[VER]].ISO"
 ISOname = "TempleOS"
 
 class TempleOS(GenericUpdater):
@@ -24,15 +24,7 @@ class TempleOS(GenericUpdater):
             for valid_ed in self.valid_editions
             if valid_ed.lower() == self.edition.lower()
         )
-        # Determine the latest version string for [[VER]]
-        # Temporarily set [[VER]] to 'latest' (or you can fetch the version if needed)
-        version_str = self._get_latest_version()
-        if version_str and isinstance(version_str, list) and len(version_str) > 0:
-            ver = version_str[0]
-        else:
-            ver = "latest"
-        file_name = FILE_NAME.replace("[[EDITION]]", self.edition).replace("[[VER]]", ver)
-        file_path = Path(folder_path) / file_name
+        file_path = Path(folder_path) / FILE_NAME.replace("[[EDITION]]", self.edition)
         super().__init__(file_path, *args, **kwargs)
         resp = robust_get(DOWNLOAD_PAGE_URL, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp is None or resp.status_code != 200:
@@ -41,7 +33,7 @@ class TempleOS(GenericUpdater):
             return
         self.download_page = resp
         self.soup_download_page = BeautifulSoup(self.download_page.content.decode("utf-8"), features="html.parser")
-        self.server_file_name = (f"TempleOS{'Lite' if self.edition == 'Lite' else ''}.iso")
+        self.server_file_name = (f"TempleOS{'Lite' if self.edition == 'Lite' else ''}.ISO")
 
 
     @cache
