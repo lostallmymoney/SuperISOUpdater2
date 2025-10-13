@@ -32,6 +32,11 @@ You do **not** need to install the package to use it! After installing the requi
 python sisou2.py /path_to_ventoy [options]
 ```
 
+If it is installed, you can use the binaries anywhere !
+```
+sisou2 /path_to_ventoy [options]
+```
+
 ## Installation & Usage (Linux, recommended: pipx)
 
 The recommended way to install and use SuperISOUpdater2 on Linux is with [pipx](https://pypa.github.io/pipx/):
