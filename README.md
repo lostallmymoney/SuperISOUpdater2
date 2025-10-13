@@ -1,6 +1,6 @@
 # SuperISOUpdater2
 
-**SuperISOUpdater2** is a Windows-friendly tool to conveniently update all of your ISO files for Ventoy and other bootable media. This is an upgrade of [SuperISOUpdater](https://github.com/JoshuaVandaele/SuperISOUpdater), with new features and improved reliability.
+**SuperISOUpdater2** is a Windows-friendly tool to conveniently update all of your ISO files for Ventoy and other bootable media. This is an upgrade of [SuperISOUpdater](https://github.com/JoshuaVandaele/SuperISOUpdater), with new features and improved reliability. :)
 
 ## Features
 
