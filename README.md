@@ -2,8 +2,6 @@
 
 **SuperISOUpdater2** is a Windows-friendly tool to conveniently update all of your ISO files for Ventoy and other bootable media. This is an upgrade of [SuperISOUpdater](https://github.com/JoshuaVandaele/SuperISOUpdater), with new features and improved reliability.
 
-> **Note:** This upgrade was made using GitHub Copilot (ChatGPT Agent 4.1).
-
 ## Features
 
 - Automatic download and update of popular OS and utility ISOs
@@ -34,11 +32,14 @@ You do **not** need to install the package to use it! After installing the requi
 python sisou2.py /path_to_ventoy [options]
 ```
 
-Or, if you are on linux and need a virtual environment:
+
+## Usage (Linux)
+
+If you are on Linux and want to use a virtual environment:
 
 ```
 sh create_venv_for_linux.sh
-.venv\Scripts\python sisou2.py /path_to_ventoy [options]
+.venv/bin/python sisou2.py /path_to_ventoy [options]
 ```
 
 ### Examples
