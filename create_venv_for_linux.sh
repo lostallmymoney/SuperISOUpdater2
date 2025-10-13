@@ -10,6 +10,7 @@ else
 fi
 
 echo "Activating virtual environment and installing requirements..."
+. .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
