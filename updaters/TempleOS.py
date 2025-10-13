@@ -24,7 +24,15 @@ class TempleOS(GenericUpdater):
             for valid_ed in self.valid_editions
             if valid_ed.lower() == self.edition.lower()
         )
-        file_path = Path(folder_path) / FILE_NAME.replace("[[EDITION]]", self.edition)
+        # Determine the latest version string for [[VER]]
+        # Temporarily set [[VER]] to 'latest' (or you can fetch the version if needed)
+        version_str = self._get_latest_version()
+        if version_str and isinstance(version_str, list) and len(version_str) > 0:
+            ver = version_str[0]
+        else:
+            ver = "latest"
+        file_name = FILE_NAME.replace("[[EDITION]]", self.edition).replace("[[VER]]", ver)
+        file_path = Path(folder_path) / file_name
         super().__init__(file_path, *args, **kwargs)
         resp = robust_get(DOWNLOAD_PAGE_URL, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp is None or resp.status_code != 200:
