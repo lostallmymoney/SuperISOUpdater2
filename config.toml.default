@@ -1,0 +1,186 @@
+# Diagnostic Tools
+
+[DiagnosticTools]
+enabled = true
+directory = "Diagnostic_Tools"
+
+[DiagnosticTools.HirensBootCDPE]
+enabled = true
+
+[DiagnosticTools.MemTest86Plus]
+enabled = true
+
+[DiagnosticTools.SystemRescue]
+enabled = true
+
+[DiagnosticTools.UltimateBootCD]
+enabled = true
+
+[DiagnosticTools.Rescuezilla]
+enabled = true
+# Available editions:
+# "bionic", "focal", "jammy", "noble"
+editions = ["noble"]
+
+# Boot Repair
+
+[BootRepair]
+enabled = true
+directory = "Boot_Repair"
+
+[BootRepair.SuperGrub2]
+enabled = true
+
+# Disk Utilities
+
+[DiskUtils]
+enabled = true
+directory = "Disk_Utilities"
+
+[DiskUtils.Clonezilla]
+enabled = true
+
+[DiskUtils.GPartedLive]
+enabled = true
+
+[DiskUtils.ShredOS]
+enabled = true
+
+[DiskUtils.HDAT2]
+enabled = true
+# Available editions:
+# "full", "lite", "diskette"
+editions = ["full"]
+
+# Operating Systems
+
+[OperatingSystems]
+enabled = true
+directory = "Operating_Systems"
+
+# Linux
+[OperatingSystems.Linux]
+enabled = true
+directory = "Linux"
+
+[OperatingSystems.Linux.ArchLinux]
+enabled = true
+
+[OperatingSystems.Linux.Debian]
+enabled = true
+# Available editions:
+# "standard", "cinnamon", "kde", "gnome", "lxde", "lxqt", "mate", "xfce"
+editions = ["kde"]
+
+[OperatingSystems.Linux.Ubuntu]
+enabled = true
+# Available editions:
+# "LTS", "interim"
+editions = ["interim"]
+
+[OperatingSystems.Linux.Fedora]
+enabled = true
+# Available editions:
+# "Budgie", "Cinnamon", "KDE", "LXDE", "MATE_Compiz", "SoaS", "Sway", "Xfce", "i3"
+editions = ["KDE"]
+
+[OperatingSystems.Linux.KaliLinux]
+enabled = true
+# Available editions:
+# "installer", "installer-netinst", "installer-purple", "live"
+editions = ["installer", "live"]
+
+[OperatingSystems.Linux.LinuxMint]
+enabled = true
+# Available editions:
+# "cinnamon", "mate", "xfce"
+editions = ["cinnamon"]
+
+[OperatingSystems.Linux.Manjaro]
+enabled = true
+# Available editions:
+# "plasma", "xfce", "gnome", "cinnamon", "i3"
+editions = ["plasma"]
+
+[OperatingSystems.Linux.OpenSUSE]
+enabled = true
+# Available editions:
+# "leap", "leap-micro", "jump"
+editions = ["leap"]
+
+[OperatingSystems.Linux.OpenSUSERolling]
+enabled = true
+# Available editions:
+# "MicroOS-DVD", "Tumbleweed-DVD", "Tumbleweed-NET", "Tumbleweed-GNOME-Live", "Tumbleweed-KDE-Live", "Tumbleweed-XFCE-Live", "Tumbleweed-Rescue-CD"
+editions = ["Tumbleweed-NET", "Tumbleweed-DVD"]
+
+[OperatingSystems.Linux.Proxmox]
+enabled = true
+# Available editions:
+# "ve", "mail-gateway", "backup-server"
+editions = ["ve"]
+
+[OperatingSystems.Linux.RockyLinux]
+enabled = true
+# Available editions:
+# "dvd", "boot", "minimal"
+editions = ["dvd"]
+
+[OperatingSystems.Linux.Tails]
+enabled = true
+
+[OperatingSystems.Linux.ChromeOS]
+enabled = true
+# Available editions:
+# "ltc", "ltr", "stable"
+editions = ["stable"]
+
+# Windows
+[OperatingSystems.Windows]
+enabled = true
+directory = "Windows"
+
+[OperatingSystems.Windows.Windows11]
+enabled = true
+# Available languages:
+# "Arabic", "Brazilian Portuguese", "Bulgarian", "Chinese", "Chinese", "Croatian", "Czech", "Danish", "Dutch", "English", "English International", "Estonian", "Finnish", "French", "French Canadian", "German", "Greek", "Hebrew", "Hungarian", "Italian", "Japanese", "Korean", "Latvian", "Lithuanian", "Norwegian", "Polish", "Portuguese", "Romanian", "Russian", "Serbian Latin", "Slovak", "Slovenian", "Spanish", "Spanish (Mexico)", "Swedish", "Thai", "Turkish", "Ukrainian"
+langs = ["English International"]
+
+[OperatingSystems.Windows.Windows10]
+enabled = true
+# Available languages:
+# "Arabic", "Brazilian Portuguese", "Bulgarian", "Chinese", "Chinese", "Croatian", "Czech", "Danish", "Dutch", "English", "English International", "Estonian", "Finnish", "French", "French Canadian", "German", "Greek", "Hebrew", "Hungarian", "Italian", "Japanese", "Korean", "Latvian", "Lithuanian", "Norwegian", "Polish", "Portuguese", "Romanian", "Russian", "Serbian Latin", "Slovak", "Slovenian", "Spanish", "Spanish (Mexico)", "Swedish", "Thai", "Turkish", "Ukrainian"
+langs = ["English International"]
+
+[OperatingSystems.BSD]
+enabled = true
+directory = "BSD"
+
+[OperatingSystems.BSD.TrueNAS]
+enabled = true
+# Available editions:
+# Scale, CORE
+editions = ["core"]
+
+# Other
+[OperatingSystems.Other]
+enabled = true
+directory = "Other"
+
+[OperatingSystems.Other.OPNsense]
+enabled = true
+# Available editions:
+# "dvd", "nano", "serial", "vga"
+editions = ["vga"]
+
+[OperatingSystems.Other.FreeDOS]
+enabled = true
+# Available editions:
+# "BonusCD", "FloppyEdition", "FullUSB", "LegacyCD", "LiteUSB", "LiveCD"
+editions = ["LiveCD"]
+
+[OperatingSystems.Other.TempleOS]
+enabled = true
+# Available editions:
+# "Distro", "Lite"
+editions = ["Distro"]

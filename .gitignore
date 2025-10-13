@@ -1,0 +1,5 @@
+# Simple .gitignore for Python project
+.vscode/
+.venv/
+__pycache__/
+*.pyc
