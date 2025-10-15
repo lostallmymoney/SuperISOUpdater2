@@ -52,8 +52,9 @@ class ChromeOS(GenericUpdater):
                 self.logging_callback(f"[{ISOname}] No SHA1 hash found for integrity check.")
             return -1
         archive_path = self._get_archive_path()
-        if(archive_path is None):
-            return -1
+        if not (isinstance(archive_path, Path) and archive_path.exists()):
+            self.logging_callback(f"[{ISOname}] No ZIP file found for integrity check.")
+            return None
         return sha1_hash_check(archive_path, sha1_sum, logging_callback=self.logging_callback)
 
     def _get_archive_path(self) -> Path | None:
