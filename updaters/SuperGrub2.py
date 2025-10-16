@@ -30,8 +30,36 @@ class SuperGrub2(GenericUpdater):
         soup = BeautifulSoup(resp.content.decode(resp.encoding or "utf-8"), features="html.parser")
         self.soup_latest_download_article = soup.find("article")
 
-    def check_integrity(self) -> None:
-        return None
+    def check_integrity(self) -> bool | None:
+        """
+        Check the integrity of the downloaded archive (zip) if it exists.
+        """
+        new_file = self._get_complete_normalized_file_path(absolute=True)
+        archive_path = new_file.with_suffix(".zip")
+        if not archive_path.exists():
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] No archive found for integrity check: {archive_path}")
+            return None
+        # Get hash info from soup
+        if not self.soup_latest_download_article:
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] No soup object for download article, cannot check integrity.")
+            return None
+        sha256_sums_tag = self.soup_latest_download_article.find_all("pre")
+        if not sha256_sums_tag:
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] Couldn't find the SHA256 sum for integrity check.")
+            return None
+        sha256_sums_tag = sha256_sums_tag[-1]
+        sha256_checksums_str = sha256_sums_tag.getText()
+        hash_lines = [line for line in sha256_checksums_str.splitlines() if "classic" not in line]
+        filtered_hashes = "\n".join(hash_lines)
+        archive_hash = parse_hash(filtered_hashes, ["-multiarch-USB.img.zip"], 0, logging_callback=self.logging_callback)
+        if not archive_hash:
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] No hash found for archive in integrity check.")
+            return None
+        return sha256_hash_check(archive_path, archive_hash, logging_callback=self.logging_callback)
 
     @cache
     def _get_download_link(self) -> str | None:
@@ -74,19 +102,14 @@ class SuperGrub2(GenericUpdater):
             archive_path.unlink(missing_ok=True)
             return None
 
-        sha256_sums_tag = self.soup_latest_download_article.find_all("pre")
-        if not sha256_sums_tag:
+        # Only use hash lines not containing 'classic'
+        # Check archive integrity using the shared method
+        integrity_ok = self.check_integrity()
+        if not integrity_ok:
             if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Couldn't find the SHA256 sum.")
+                self.logging_callback(f"[{ISOname}] FAIL: Hash check failed or hash missing for {archive_path}.")
             archive_path.unlink(missing_ok=True)
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: No <pre> tag with SHA256 sum found in soup.")
             return None
-        sha256_sums_tag = sha256_sums_tag[-1]
-        sha256_checksums_str = sha256_sums_tag.getText()
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] SHA256 hash text from page:\n{sha256_checksums_str}")
-
         from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
         to_extract = find_biggest_file_in_zip(str(archive_path), ext=".img")
         if not to_extract:
@@ -96,8 +119,6 @@ class SuperGrub2(GenericUpdater):
             return None
         if self.logging_callback:
             self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
-        # Check hash for .img file
-        img_hash = parse_hash(sha256_checksums_str, [os.path.basename(to_extract)], 0, logging_callback=self.logging_callback)
         import zipfile
         with zipfile.ZipFile(archive_path, 'r') as zf:
             zf.extract(to_extract, path=new_file.parent)
@@ -107,18 +128,9 @@ class SuperGrub2(GenericUpdater):
                 self.logging_callback(f"[{ISOname}] FAIL: No file found after unzip: {extracted_path}")
             archive_path.unlink(missing_ok=True)
             return None
-        if not img_hash or not sha256_hash_check(extracted_path, img_hash, logging_callback=self.logging_callback):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: Hash check failed or hash missing for {to_extract}.")
-            archive_path.unlink(missing_ok=True)
-            extracted_path.unlink(missing_ok=True)
-            return None
-        # The output .img should be named as the archive minus the .zip extension
-        expected_img_path = archive_path.with_suffix("")
-        archive_path.unlink(missing_ok=True)
-        os.replace(extracted_path, expected_img_path)
+        # Do not rename the extracted file; leave it as is
         if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] DONE. Installed to {expected_img_path}")
+            self.logging_callback(f"[{ISOname}] DONE. Extracted to {extracted_path}")
         return True
 
 
