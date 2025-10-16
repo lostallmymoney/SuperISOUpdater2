@@ -1,7 +1,5 @@
 import argparse
-import concurrent.futures
 import logging
-import threading
 from functools import cache
 from pathlib import Path
 from typing import Type
@@ -9,10 +7,9 @@ from updaters.generic.GenericUpdater import GenericUpdater
 from updaters.shared.parse_config import parse_config
 
 
-_print_lock = threading.Lock()
 def logging_callback(msg):
-    with _print_lock:
-        print(msg, flush=True)
+    # Sequential logging; no threading, so no lock needed.
+    print(msg, flush=True)
 
 @cache
 def get_available_updaters() -> list[Type[GenericUpdater]]:
@@ -194,19 +191,17 @@ def main():
         print(f"{cls_name} | edition: {edition} | lang: {lang}")
     print("--- End of updaters list ---")
 
-    # After updaters are accumulated, filter them in parallel using 4 threads
-    def check_and_filter(updater):
+    # After updaters are accumulated, check them sequentially
+    filtered: list[GenericUpdater | None] = []
+    for updater in updaters_list:
         try:
             result = updater.check_for_updates()
-            # Only keep if result is True (needs update) or None (unknown, be safe)
             if result is True or result is None:
-                return updater
-            return None
-        except Exception as e:
-            return None
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        filtered = list(executor.map(check_and_filter, updaters_list))
+                filtered.append(updater)
+            else:
+                filtered.append(None)
+        except Exception:
+            filtered.append(None)
     # Only keep updaters that returned True or None (need update)
     updaters_list[:] = [u for u in filtered if u is not None]
 

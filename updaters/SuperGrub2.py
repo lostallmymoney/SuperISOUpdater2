@@ -87,43 +87,38 @@ class SuperGrub2(GenericUpdater):
         if self.logging_callback:
             self.logging_callback(f"[{ISOname}] SHA256 hash text from page:\n{sha256_checksums_str}")
 
-        import zipfile
-        with zipfile.ZipFile(archive_path, 'r') as zf:
-            file_list = zf.namelist()
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Files in archive: {file_list}")
-        # Find the inner .img.zip file (just the filename, not path)
-        inner_zip_file = next((os.path.basename(f) for f in file_list if f.endswith(".img")), None)
-        if not inner_zip_file:
+        from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
+        to_extract = find_biggest_file_in_zip(str(archive_path), ext=".img")
+        if not to_extract:
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] FAIL: No .img file found in archive {archive_path}")
             archive_path.unlink(missing_ok=True)
             return None
         if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Found inner .img.zip file: {inner_zip_file}")
-        # Check hash for .img.zip
-        img_zip_hash = parse_hash(sha256_checksums_str, [inner_zip_file], 0, logging_callback=self.logging_callback)
-        inner_zip_path = new_file.parent / inner_zip_file
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] img_zip_hash for {inner_zip_file}: {img_zip_hash}")
-        if not img_zip_hash or not sha256_hash_check(archive_path, img_zip_hash, logging_callback=self.logging_callback):
+            self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
+        # Check hash for .img file
+        img_hash = parse_hash(sha256_checksums_str, [os.path.basename(to_extract)], 0, logging_callback=self.logging_callback)
+        import zipfile
+        with zipfile.ZipFile(archive_path, 'r') as zf:
+            zf.extract(to_extract, path=new_file.parent)
+        extracted_path = new_file.parent / to_extract
+        if not extracted_path.exists():
             if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: Hash check failed or hash missing for {inner_zip_file}.")
-            archive_path.unlink(missing_ok=True)
-            inner_zip_path.unlink(missing_ok=True)
-            return None
-        # Unzip the .img.zip
-        unzip_file(archive_path, new_file.parent)
-        extracted_path = new_file.parent / inner_zip_path
-        if not extracted_path:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: No file found after inner unzip.")
+                self.logging_callback(f"[{ISOname}] FAIL: No file found after unzip: {extracted_path}")
             archive_path.unlink(missing_ok=True)
             return None
+        if not img_hash or not sha256_hash_check(extracted_path, img_hash, logging_callback=self.logging_callback):
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] FAIL: Hash check failed or hash missing for {to_extract}.")
+            archive_path.unlink(missing_ok=True)
+            extracted_path.unlink(missing_ok=True)
+            return None
+        # The output .img should be named as the archive minus the .zip extension
+        expected_img_path = archive_path.with_suffix("")
         archive_path.unlink(missing_ok=True)
-        os.replace(extracted_path, new_file)
+        os.replace(extracted_path, expected_img_path)
         if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] DONE. Installed to {new_file}")
+            self.logging_callback(f"[{ISOname}] DONE. Installed to {expected_img_path}")
         return True
 
 

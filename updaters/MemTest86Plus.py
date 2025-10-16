@@ -149,22 +149,27 @@ class MemTest86Plus(GenericUpdater):
             return False
         self.logging_callback(f"[{ISOname}] Archive hash check passed for {zip_filename}")
         self.logging_callback(f"[{ISOname}] Extracting archive {archive_path}")
-        unzip_file(archive_path, new_file_path.parent)
-        iso = next((file for file in new_file_path.parent.glob("*.iso")), None)
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Found ISO after extraction: {iso}")
-        if not iso:
-            msg = f"[{ISOname}] ERROR: No .iso file found in archive after extraction."
+        from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
+        to_extract = find_biggest_file_in_zip(str(archive_path), ext=".iso")
+        if not to_extract:
+            msg = f"[{ISOname}] ERROR: No .iso file found in archive."
             if self.logging_callback:
                 self.logging_callback(msg)
             archive_path.unlink(missing_ok=True)
             return None
-        self.logging_callback(f"[{ISOname}] Extracted {iso} from archive.")
+        if self.logging_callback:
+            self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
+        import zipfile
+        with zipfile.ZipFile(archive_path, 'r') as zf:
+            zf.extract(to_extract, path=new_file_path.parent)
+        # The output ISO should be named as the archive minus the .zip extension
+        expected_iso_path = archive_path.with_suffix("")
+        extracted_iso_path = new_file_path.parent / to_extract
         archive_path.unlink(missing_ok=True)
         try:
-            if iso.resolve() != new_file_path.resolve():
-                os.replace(iso, new_file_path)
-            self.logging_callback(f"[{ISOname}] Installed new version to {new_file_path}")
+            if extracted_iso_path.resolve() != expected_iso_path.resolve():
+                os.replace(extracted_iso_path, expected_iso_path)
+            self.logging_callback(f"[{ISOname}] Installed new version to {expected_iso_path}")
         except Exception as e:
             msg = f"[{ISOname}] ERROR: Error replacing file: {e}"
             if self.logging_callback:

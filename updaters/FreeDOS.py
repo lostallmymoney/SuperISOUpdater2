@@ -73,22 +73,21 @@ class FreeDOS(GenericUpdater):
         if not sha256_hash_check(archive_path, sha256_sum, package_name=ISOname, logging_callback=self.logging_callback):
             self.logging_callback(f"[{ISOname}.install_latest_version] Archive hash check failed.")
             return False
-        # Extract only the ISO or IMG file from the archive using extract_file_from_zip
-        import zipfile
-        with zipfile.ZipFile(archive_path) as z:
-            file_list = z.namelist()
-            try:
-                file_ext = ".ISO"
-                to_extract = next(file for file in file_list if file.upper().endswith(file_ext))
-            except StopIteration:
-                file_ext = ".IMG"
-                to_extract = next(file for file in file_list if file.upper().endswith(file_ext))
-            # Extract the file
-            extract_file_from_zip(archive_path, to_extract, new_file.parent)
-            extracted_file = new_file.parent / to_extract
+        from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
+        # Try to find the biggest .iso, then .img
+        to_extract = find_biggest_file_in_zip(str(archive_path), ext='.iso')
+        file_ext = '.iso'
+        if not to_extract:
+            to_extract = find_biggest_file_in_zip(str(archive_path), ext='.img')
+            file_ext = '.img'
+        if not to_extract:
+            self.logging_callback(f"[{ISOname}] No suitable ISO or IMG file found in archive.")
+            return None
+        extract_file_from_zip(archive_path, to_extract, new_file.parent)
+        extracted_file = new_file.parent / to_extract
         # Rename to the final destination
         try:
-            os.replace(extracted_file, new_file.with_suffix(file_ext.lower()))
+            os.replace(extracted_file, new_file.with_suffix(file_ext))
         except Exception as e:
             self.logging_callback(f"[{ISOname}] Error replacing file: {e}")
             return None

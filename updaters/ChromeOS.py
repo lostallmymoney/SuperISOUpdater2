@@ -88,19 +88,23 @@ class ChromeOS(GenericUpdater):
         if not sha1_hash_check(archive_path, sha1_sum, logging_callback=self.logging_callback):
             archive_path.unlink(missing_ok=True)
             return False
-        # Find the .bin file in the archive
-        file_list = list_zip_files(archive_path)
-        bin_candidates = [f for f in file_list if f.lower().endswith('.bin')]
-        if not bin_candidates:
+        # Find the .bin file in the archive by inspecting archive contents
+        from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
+        to_extract = find_biggest_file_in_zip(str(archive_path), ext=".bin")
+        if not to_extract:
             archive_path.unlink(missing_ok=True)
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No .bin file found in archive.")
             return None
-        to_extract = bin_candidates[0]
-        # Extract the .bin file
-        extract_file_from_zip(archive_path, to_extract, img_path.parent)
+        if self.logging_callback:
+            self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
+        import zipfile
+        with zipfile.ZipFile(archive_path, 'r') as zf:
+            zf.extract(to_extract, path=img_path.parent)
         extracted_file = img_path.parent / to_extract
-        os.replace(extracted_file, img_path)
+        # The output .bin should be named as the archive minus the .zip extension
+        expected_bin_path = archive_path.with_suffix("")
+        os.replace(extracted_file, expected_bin_path)
         #archive_path.unlink(missing_ok=True) Leave the archive for future integrity checks
         return True
 
