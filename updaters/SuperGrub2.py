@@ -39,17 +39,17 @@ class SuperGrub2(GenericUpdater):
         if not archive_path.exists():
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No archive found for integrity check: {archive_path}")
-            return None
+            return False
         # Get hash info from soup
         if not self.soup_latest_download_article:
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No soup object for download article, cannot check integrity.")
-            return None
+            return -1
         sha256_sums_tag = self.soup_latest_download_article.find_all("pre")
         if not sha256_sums_tag:
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] Couldn't find the SHA256 sum for integrity check.")
-            return None
+            return -1
         sha256_sums_tag = sha256_sums_tag[-1]
         sha256_checksums_str = sha256_sums_tag.getText()
         hash_lines = [line for line in sha256_checksums_str.splitlines() if "classic" not in line]
@@ -58,7 +58,7 @@ class SuperGrub2(GenericUpdater):
         if not archive_hash:
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No hash found for archive in integrity check.")
-            return None
+            return -1
         return sha256_hash_check(archive_path, archive_hash, logging_callback=self.logging_callback)
 
     @cache

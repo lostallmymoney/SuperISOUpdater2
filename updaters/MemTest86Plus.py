@@ -82,8 +82,42 @@ class MemTest86Plus(GenericUpdater):
             self.logging_callback(f"[{ISOname}] Download link resolved: {full_link}")
         return full_link
 
-    def check_integrity(self) -> None:
-        return None
+    def check_integrity(self) -> bool | int:
+        """
+        Check the integrity of the downloaded archive (zip) if it exists.
+        Returns:
+            True if integrity check passes
+            False if file not there or integrity check failed
+            -1 if error fetching the hash online
+        """
+        new_file_path = self._get_complete_normalized_file_path(absolute=True)
+        latest_version = self._get_latest_version()
+        if not isinstance(latest_version, list):
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] ERROR: Could not determine latest version for integrity check.")
+            return -1
+        archive_path = new_file_path.parent / f"mt86plus_{self._version_to_str(latest_version)}_64.iso.zip"
+        if not archive_path.exists():
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}.check_integrity] Archive does not exist: {archive_path}")
+            return False
+        # Archive exists, now check hash
+        sha256_checksums_str = self.sha256sum_txt
+        zip_filename = archive_path.name
+        if not sha256_checksums_str:
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] ERROR: No SHA256 checksum available for {zip_filename}, cannot verify integrity.")
+            return -1
+        sha256_checksum = parse_hash(sha256_checksums_str, [zip_filename], 0)
+        if not sha256_checksum:
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] ERROR: No SHA256 checksum found for {zip_filename} in hash file.")
+            return -1
+        if not sha256_hash_check(archive_path, sha256_checksum, package_name=ISOname, logging_callback=self.logging_callback):
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}.check_integrity] Archive hash check failed.")
+            return False
+        return True
 
     def install_latest_version(self) -> bool | None:
         """
@@ -126,28 +160,12 @@ class MemTest86Plus(GenericUpdater):
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] ERROR: Download failed for {download_link}")
             return None
-        # Use cached hash file
-        sha256_checksums_str = self.sha256sum_txt
-        zip_filename = archive_path.name
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] sha256sum_txt: {sha256_checksums_str is not None}, zip_filename: {zip_filename}")
-        sha256_checksum = parse_hash(sha256_checksums_str, [zip_filename], 0) if sha256_checksums_str else None
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] parse_hash result: {sha256_checksum}")
-        if not sha256_checksum:
+        # Centralized integrity check
+        integrity_result = self.check_integrity()
+        if integrity_result != True:
             if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] ERROR: No SHA256 checksum available for {zip_filename}, cannot verify integrity.")
-            return None
-        self.logging_callback(f"[{ISOname}] Verifying archive hash for {zip_filename}")
-        hash_ok = sha256_hash_check(archive_path, sha256_checksum, package_name=ISOname, logging_callback=self.logging_callback)
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] sha256_hash_check result: {hash_ok}")
-        if not hash_ok:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] ERROR: Integrity check failed for {zip_filename}")
-            archive_path.unlink(missing_ok=True)
+                self.logging_callback(f"[{ISOname}] Integrity check failed after download. Result: {integrity_result}")
             return False
-        self.logging_callback(f"[{ISOname}] Archive hash check passed for {zip_filename}")
         self.logging_callback(f"[{ISOname}] Extracting archive {archive_path}")
         from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
         to_extract = find_biggest_file_in_zip(str(archive_path), ext=".iso")
@@ -155,7 +173,6 @@ class MemTest86Plus(GenericUpdater):
             msg = f"[{ISOname}] ERROR: No .iso file found in archive."
             if self.logging_callback:
                 self.logging_callback(msg)
-            archive_path.unlink(missing_ok=True)
             return None
         if self.logging_callback:
             self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
@@ -165,7 +182,6 @@ class MemTest86Plus(GenericUpdater):
         # The output ISO should be named as the archive minus the .zip extension
         expected_iso_path = archive_path.with_suffix("")
         extracted_iso_path = new_file_path.parent / to_extract
-        archive_path.unlink(missing_ok=True)
         try:
             if extracted_iso_path.resolve() != expected_iso_path.resolve():
                 os.replace(extracted_iso_path, expected_iso_path)
@@ -175,6 +191,7 @@ class MemTest86Plus(GenericUpdater):
             if self.logging_callback:
                 self.logging_callback(msg)
             return None
+        # Leave the archive for future integrity checks
         return True
     
     @cache
