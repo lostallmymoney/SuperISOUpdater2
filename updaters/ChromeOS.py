@@ -41,27 +41,19 @@ class ChromeOS(GenericUpdater):
             self.cur_edition_info = None
             return
 
-    def check_integrity(self) -> bool | None:
-        """
-        Check the integrity of the downloaded archive (zip) if it exists.
-        """
+    def check_integrity(self) -> bool | int | None:
         archive_path = self._get_archive_path()
-        if not (isinstance(archive_path, Path) and archive_path.exists()):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No ZIP file found for integrity check.")
-            return False
-        
+        if archive_path is None or not Path(archive_path).is_file():
+            return None
         if not self.cur_edition_info:
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No edition info available for integrity check.")
             return -1
-        
         sha1_sum = self.cur_edition_info.get("sha1")
         if not sha1_sum:
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No SHA1 hash found for integrity check.")
             return -1
-        
         return sha1_hash_check(archive_path, sha1_sum, logging_callback=self.logging_callback)
 
     def _get_archive_path(self) -> Path | None:
@@ -78,34 +70,37 @@ class ChromeOS(GenericUpdater):
         archive_path = self._get_archive_path()
         if not self.cur_edition_info or not isinstance(archive_path, Path):
             return None
+        img_path = archive_path.with_suffix("").with_suffix(".img")
         download_link = self._get_download_link()
         if not isinstance(download_link, str):
             return None
+        
         result = robust_download(download_link, local_file=archive_path, retries=retries, logging_callback=self.logging_callback)
         if not result:
             return None
-        # Centralized integrity check
-        if not self.check_integrity():
+        sha1_sum = self.cur_edition_info.get("sha1")
+        if not sha1_sum:
+            archive_path.unlink(missing_ok=True)
+            if self.logging_callback:
+                self.logging_callback(f"[{ISOname}] No SHA1 hash found for integrity check.")
+            return None
+        if not sha1_hash_check(archive_path, sha1_sum, logging_callback=self.logging_callback):
             archive_path.unlink(missing_ok=True)
             return False
-        # Find the .bin file in the archive by inspecting archive contents
-        from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
-        to_extract = find_biggest_file_in_zip(str(archive_path), ext=".bin")
-        if not to_extract:
+        # Find the .bin file in the archive
+        file_list = list_zip_files(archive_path)
+        bin_candidates = [f for f in file_list if f.lower().endswith('.bin')]
+        if not bin_candidates:
             archive_path.unlink(missing_ok=True)
             if self.logging_callback:
                 self.logging_callback(f"[{ISOname}] No .bin file found in archive.")
             return None
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
-        import zipfile
-        with zipfile.ZipFile(archive_path, 'r') as zf:
-            zf.extract(to_extract, path=archive_path.parent)
-        extracted_file = archive_path.parent / to_extract
-        # The output .bin should be named as the archive minus the .zip extension
-        expected_bin_path = archive_path.with_suffix("")
-        os.replace(extracted_file, expected_bin_path)
-        # Leave the archive for future integrity checks
+        to_extract = bin_candidates[0]
+        # Extract the .bin file
+        extract_file_from_zip(archive_path, to_extract, img_path.parent)
+        extracted_file = img_path.parent / to_extract
+        os.replace(extracted_file, img_path)
+        #archive_path.unlink(missing_ok=True) Leave the archive for future integrity checks
         return True
 
     @cache
