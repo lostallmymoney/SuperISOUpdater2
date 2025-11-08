@@ -28,27 +28,31 @@ class ShredOS(GenericUpdater):
     def __init__(self, folder_path: Path, *args, **kwargs):
         file_path = folder_path / FILE_NAME
         super().__init__(file_path, *args, **kwargs)
-        release = github_get_latest_version("PartialVolume", "shredos.x86_64")
-        self.release_info = parse_github_release(release)
+
+        release = github_get_latest_version("PartialVolume", "shredos.x86_64", self.logging_callback)
+        info = parse_github_release(release, self.logging_callback) if release is not None else None
+        self.release_info = info if info is not None else {}
 
     @cache
     def _get_download_link(self) -> str | None:
-        return next(
-            download_link
-            for filename, download_link in self.release_info["files"].items()
-            if filename.endswith(".img") and "x86-64" in filename
-        )
-
-    def check_integrity(self) -> bool | None:
-        sha1_sums = self.release_info.get("text")
-        if not sha1_sums:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No SHA1 sums found in release info.")
+        files = self.release_info.get("files") if self.release_info else None
+        if not files:
             return None
+        for filename, download_link in files.items():
+            if filename.endswith(".img") and "x86-64" in filename:
+                return download_link
+        return None
+
+    def check_integrity(self) -> bool | int | None:
+        sha1_sums = self.release_info.get("text") if self.release_info else None
+        if not sha1_sums:
+            self.logging_callback("No SHA1 sums available for integrity check.")
+            return -1
 
         latest_version = self._get_latest_version()
         if latest_version is None:
-            return None
+            self.logging_callback("Could not determine latest version for integrity check.")
+            return -1
 
         sha1_sum = parse_hash(
             sha1_sums,
@@ -59,17 +63,21 @@ class ShredOS(GenericUpdater):
                 ".img",
             ],
             1,
+            logging_callback=self.logging_callback
         )
         if not sha1_sum:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not parse SHA1 sum from release info.")
-            return None
+            self.logging_callback("Could not parse SHA1 sum for integrity check.")
+            return -1
 
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
-        if download_link is None or not isinstance(local_file, Path):
+        if download_link is None:
+            self.logging_callback("Could not resolve download link for integrity check.")
+            return -1
+        if not isinstance(local_file, Path) or not local_file.exists():
+            self.logging_callback("Local file does not exist for integrity check.")
             return None
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         if sha1_hash_check(local_file, sha1_sum, logging_callback=self.logging_callback) is False:
             return False
@@ -77,7 +85,7 @@ class ShredOS(GenericUpdater):
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
-        tag = self.release_info.get("tag")
+        tag = self.release_info.get("tag") if self.release_info else None
         if not tag or "v" not in tag or "_" not in tag:
             return None
         start_index = tag.find("v")

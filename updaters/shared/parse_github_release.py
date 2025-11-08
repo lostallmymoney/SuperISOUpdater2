@@ -1,13 +1,15 @@
-def parse_github_release(release: dict, logging_callback=None) -> dict:
+def parse_github_release(release: dict, logging_callback) -> dict | None:
     """Parses a github release into a shorter, easier to read format"""
-    res = {
-        "tag": release["tag_name"],
-        "files": {},
-        "text": release["body"],
-        "source_code": release["zipball_url"],
-    }
-    for asset in release["assets"]:
-        res["files"][asset["name"]] = asset["browser_download_url"]
-    if logging_callback:
-        logging_callback(f"GitHub release parsed: {res}")
-    return res
+    try:
+        res = {
+            "tag": release["tag_name"],
+            "files": {},
+            "text": release["body"],
+            "source_code": release["zipball_url"],
+        }
+        for asset in release["assets"]:
+            res["files"][asset["name"]] = asset["browser_download_url"]
+        return res
+    except Exception as e:
+        logging_callback(f"Failed to parse GitHub release: {e}")
+        return None

@@ -15,10 +15,6 @@ DOWNLOAD_PAGE_URL = f"{DOMAIN}/Download"
 FILE_NAME = "systemrescue-[[VER]]-amd64.iso"
 ISOname = "SystemRescue"
 
-
-
-
-
 class SystemRescue(GenericUpdater):
     """
     A class representing an updater for SystemRescue.
@@ -38,18 +34,15 @@ class SystemRescue(GenericUpdater):
     def _get_download_link(self) -> str | None:
         download_tag: Tag | None = self._find_in_table("Fastly")
         if not download_tag:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Failed to find the `Tag` containing the download link")
+            self.logging_callback("Failed to find the `Tag` containing the download link")
             return None
         href_attributes = download_tag.find_all(href=True)
         if not href_attributes:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No download link found in the `Tag`")
+            self.logging_callback("No download link found in the `Tag`")
             return None
         href = href_attributes[0].get("href")
         if not isinstance(href, str):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Download link is not a string")
+            self.logging_callback("Download link is not a string")
             return None
         return href
 
@@ -63,7 +56,7 @@ class SystemRescue(GenericUpdater):
         download_link = self._get_download_link()
         if not isinstance(local_file, Path) or not isinstance(download_link, str):
             return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         return check_remote_integrity(
             hash_url=sha256_download_link,
@@ -77,8 +70,7 @@ class SystemRescue(GenericUpdater):
     def _get_latest_version(self) -> list[str] | None:
         download_link = self._get_download_link()
         if not download_link:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not get download link for version extraction.")
+            self.logging_callback("Could not get download link for version extraction.")
             return None
         latest_version_regex = re.search(
             r"releases\/(.+)\/",  # Parse from https://fastly-cdn.system-rescue.org/releases/10.01/systemrescue-10.01-amd64.iso
@@ -86,25 +78,21 @@ class SystemRescue(GenericUpdater):
         )
         if latest_version_regex:
             return self._str_to_version(latest_version_regex.group(1))
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Could not find the latest available version in download link.")
+        self.logging_callback("Could not find the latest available version in download link.")
         return None
 
     def _find_in_table(self, row_name_contains: str) -> Tag | None:
         s: Tag | None = self.soup_download_page.find("div", attrs={"id": "colcenter"}) if self.soup_download_page else None  # type: ignore
         if not s:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find the div containing the table with download information.")
+            self.logging_callback("Could not find the div containing the table with download information.")
             return None
         s = s.find("table")  # type: ignore
         if not s:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find the table containing download information.")
+            self.logging_callback("Could not find the table containing download information.")
             return None
         for tr in s.find_all("tr"):
             for td in tr.find_all("td"):
                 if row_name_contains in td.getText():
                     return td
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Failed to find '{row_name_contains}' in the table.")
+        self.logging_callback(f"Failed to find '{row_name_contains}' in the table.")
         return None

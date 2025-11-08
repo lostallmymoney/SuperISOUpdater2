@@ -3,7 +3,7 @@ import mmap
 from pathlib import Path
 from typing import Union
 
-def verify_tails_mmap_bytes(file_path: Path, sig_data: bytes, key_data: bytes, logging_callback=None) -> bool:
+def verify_tails_mmap_bytes(file_path: Path, sig_data: bytes, key_data: bytes, logging_callback) -> bool:
     """
     Verify a Tails ISO using a memory-mapped ISO, a signature in bytes, and a PGP key in bytes or string.
 
@@ -30,9 +30,14 @@ def verify_tails_mmap_bytes(file_path: Path, sig_data: bytes, key_data: bytes, l
     # Load the detached signature from bytes
     sig = pgpy.PGPSignature.from_blob(sig_data)
 
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    RESET = '\033[0m'
     # Open and memory-map the ISO file
     with open(str(file_path), "rb") as f:
         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as file_mmap:
             if not key.verify(file_mmap[:], sig):
-                raise ValueError("ISO signature verification failed!")
+                logging_callback(f"{RED}PGP signature verification FAILED for {file_path}{RESET}")
+                return False
+    logging_callback(f"{GREEN}PGP signature verification OK for {file_path}{RESET}")
     return True

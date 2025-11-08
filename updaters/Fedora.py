@@ -33,14 +33,12 @@ class Fedora(GenericUpdater):
             logging_callback=self.logging_callback
         )
         if not self.download_page or getattr(self.download_page, 'status_code', 0) != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[Fedora] Failed to fetch the download page from '{getattr(self.download_page, 'url', 'unknown')}'")
+            self.logging_callback(f"Failed to fetch the download page from '{getattr(self.download_page, 'url', 'unknown')}'")
             self.soup_download_page = BeautifulSoup("", features="html.parser")
         else:
             self.soup_download_page = BeautifulSoup(self.download_page.content.decode("utf-8"), features="html.parser")
-            if self.logging_callback:
-                page_title = self.soup_download_page.title.string.strip() if self.soup_download_page.title and self.soup_download_page.title.string else "(no title)"
-                self.logging_callback(f"[Fedora] Initial download page: URL={getattr(self.download_page, 'url', 'unknown')}, Title={page_title}")
+            page_title = self.soup_download_page.title.string.strip() if self.soup_download_page.title and self.soup_download_page.title.string else "(no title)"
+            self.logging_callback(f"Initial download page: URL={getattr(self.download_page, 'url', 'unknown')}, Title={page_title}")
             meta = self.soup_download_page.find("meta", attrs={"http-equiv": "refresh"})
             if meta and "content" in meta.attrs:
                 content = meta["content"]
@@ -55,9 +53,8 @@ class Fedora(GenericUpdater):
                     new_page = robust_get(redirect_url, logging_callback=self.logging_callback)
                     if new_page and getattr(new_page, 'status_code', 0) == 200:
                         self.soup_download_page = BeautifulSoup(new_page.content.decode("utf-8"), features="html.parser")
-                        if self.logging_callback:
-                            page_title = self.soup_download_page.title.string.strip() if self.soup_download_page.title and self.soup_download_page.title.string else "(no title)"
-                            self.logging_callback(f"[Fedora] After meta-refresh: URL={getattr(new_page, 'url', 'unknown')}, Title={page_title}")
+                        page_title = self.soup_download_page.title.string.strip() if self.soup_download_page.title and self.soup_download_page.title.string else "(no title)"
+                        self.logging_callback(f"After meta-refresh: URL={getattr(new_page, 'url', 'unknown')}, Title={page_title}")
 
     @cache
     def _get_download_link(self) -> str | None:
@@ -80,25 +77,22 @@ class Fedora(GenericUpdater):
     def check_integrity(self) -> bool | int | None:
         latest_version = self._get_latest_version()
         if not isinstance(latest_version, list):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not determine latest version for edition: {self.edition}")
+            self.logging_callback(f"Could not determine latest version for edition: {self.edition}")
             return None
         local_file = self._get_complete_normalized_file_path(absolute=True)
         if not local_file.exists():
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] File does not exist: {local_file}")
+            self.logging_callback(f"File does not exist: {local_file}")
             return False
+        # Compose the checksum URL and match string
         sha256_url = f"https://download.fedoraproject.org/pub/fedora/linux/releases/{latest_version[0]}/{self.edition}/x86_64/iso/Fedora-{self.edition}-{latest_version[0]}-{latest_version[1]}{'.'+latest_version[2] if len(latest_version)>2 else ''}-x86_64-CHECKSUM"
         match_string = f"SHA256 (Fedora-{self.edition}"
         iso_url = self._get_download_link()
         if not iso_url:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not determine ISO download URL for file size check.")
+            self.logging_callback(f"Could not determine ISO download URL for file size check.")
             return None
-        size_ok = verify_file_size(local_file, iso_url, self.logging_callback, ISOname)
+        size_ok = verify_file_size(local_file, iso_url, logging_callback=self.logging_callback)
         if not size_ok:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] File size check failed.")
+            self.logging_callback(f"File size check failed.")
             return False
         hash_ok = check_remote_integrity(
             hash_url=sha256_url,
@@ -108,8 +102,7 @@ class Fedora(GenericUpdater):
             logging_callback=self.logging_callback
         )
         if not hash_ok:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Hash check failed.")
+            self.logging_callback(f"Hash check failed.")
             return False
         return True
 
@@ -123,16 +116,12 @@ class Fedora(GenericUpdater):
                 iso_link = href
                 break
         if not iso_link:
-            if self.logging_callback:
-                self.logging_callback(f"[Fedora] Could not find ISO link. Edition: {self.edition}")
+            self.logging_callback(f"Could not find ISO link. Edition: {self.edition}")
             return None
         m = re.search(r"Live-(\d+)-(\d+\.\d+)\.x86_64\.iso", str(iso_link))
         if not m:
-            #m = re.search(r"Live-(\d+)\.x86_64\.iso", str(iso_link))
-            #if not m:
-                if self.logging_callback:
-                    self.logging_callback(f"[Fedora] Could not extract version from ISO link: {iso_link}")
-                return None
+            self.logging_callback(f"Could not extract version from ISO link: {iso_link}")
+            return None
         else:
             # Return as a list of strings to match the base class signature
             version = [m.group(1), m.group(2)]

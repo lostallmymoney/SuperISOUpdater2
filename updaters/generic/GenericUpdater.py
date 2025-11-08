@@ -10,6 +10,17 @@ from updaters.shared.fetch_hashes_from_url import fetch_hashes_from_url
 
 
 class GenericUpdater(ABC):
+
+    def logging_callback(self, message: str):
+        """Centralized logging method for all updaters. Always adds [self.ISOname] prefix if not present. Calls the parent callback if set."""
+        prefix = f"[{getattr(self, 'ISOname', self.__class__.__name__)}]"
+        # Only add prefix if not already present
+        if not (isinstance(message, str) and message.strip().startswith(prefix)):
+            message = f"{prefix} {message}"
+        if hasattr(self, 'parent_log_callback') and self.parent_log_callback:
+            self.parent_log_callback(message)
+        else:
+            print(message)
     # --- Begin inlined shared functions ---
 
     def _get_local_file(self) -> Path | None:
@@ -61,10 +72,9 @@ class GenericUpdater(ABC):
         if download_link is None:
             return -1
         # Fetch hashes from the download link (or override in subclass)
-        hashes = fetch_hashes_from_url(download_link)
+        hashes = fetch_hashes_from_url(download_link, self.logging_callback)
         if not hashes:
-            if self.logging_callback:
-                self.logging_callback("No hash value provided for integrity check.")
+            self.logging_callback("No hash value provided for integrity check.")
             return -1
         # Get the file path to check
         file_to_check = self._get_complete_normalized_file_path(absolute=True)
@@ -74,7 +84,6 @@ class GenericUpdater(ABC):
         return sha256_hash_check(
             file_to_check,
             hashes,
-            package_name=getattr(self, 'ISOname', ''),
             logging_callback=self.logging_callback
         )
     """
@@ -83,14 +92,65 @@ class GenericUpdater(ABC):
         file_path (Path): The path to the file that needs to be updated.
     """
 
-    def __init__(self, file_path: Path, *args, logging_callback, **kwargs) -> None:
+    def __init__(self, file_path: Path, *args, parent_logging_callback, **kwargs) -> None:
+        import random
+        import hashlib
         self.file_path = file_path.resolve()
         self.folder_path = file_path.parent.resolve()
         self.version_splitter = "."
-        self.logging_callback = logging_callback
-        # Store retries_count if present in kwargs, else default to 0
+        self.parent_log_callback = parent_logging_callback
         self.retries_count = kwargs.get('retries_count', 0)
-        # NOTE: Updaters should handle logging via callback if needed. Base class does not log.
+        # Vastly expanded color palette using 256-color ANSI escape codes for foreground (avoid backgrounds, black/dark, and white/light colors)
+        # Exclude black (16), very dark (232-236), and very light/white (231, 230, 229, 15, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 145, 255)
+        # Exclude dark blue (17), dark green/cyan (18), and other very dark colors (19, 52-59)
+        # Also exclude blue shades 20 and 21 (problematic for HirensBootCDPE and MemTest86Plus)
+        excluded = {16, 17, 18, 19, 20, 21, 52, 53, 54, 55, 56, 57, 58, 59, 231, 230, 229, 15, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 145, 232, 233, 234, 235, 236}
+        color_codes = [
+            f'\033[38;5;{i}m' for i in range(16, 231)
+            if i not in excluded
+        ]
+        reset_code = '\033[0m'
+        # Global color registry for non-Windows updaters
+        if not hasattr(GenericUpdater, '_used_colors'):
+            GenericUpdater._used_colors = {}
+        base_name = None
+        # Try to get ISOname from self, class, or module
+        if hasattr(self, 'ISOname'):
+            base_name = getattr(self, 'ISOname', None)
+        if not base_name and hasattr(self, '__class__') and hasattr(self.__class__, 'ISOname'):
+            base_name = getattr(self.__class__, 'ISOname', None)
+        if not base_name:
+            try:
+                import sys
+                mod = sys.modules[self.__class__.__module__]
+                base_name = getattr(mod, 'ISOname', None)
+            except Exception:
+                pass
+        # Windows updaters and GenericUpdater can share colors
+        windows_names = {"Windows10", "Windows11", "WindowsConsumerDownloader", "GenericUpdater"}
+        class_name = self.__class__.__name__
+        if base_name and not (str(base_name).startswith('\033[') and str(base_name).endswith(reset_code)):
+            if class_name in windows_names:
+                # Use hash for color, allow collisions
+                idx = int(hashlib.sha256(str(base_name).encode()).hexdigest(), 16) % len(color_codes)
+                color = color_codes[idx]
+            else:
+                # Assign unique color for each non-Windows updater
+                used = GenericUpdater._used_colors
+                # Try to find an unused color
+                for i, color in enumerate(color_codes):
+                    if color not in used.values():
+                        used[class_name] = color
+                        break
+                else:
+                    # Fallback: hash if all colors used
+                    idx = int(hashlib.sha256(str(base_name).encode()).hexdigest(), 16) % len(color_codes)
+                    color = color_codes[idx]
+                    used[class_name] = color
+                color = used[class_name]
+            colored_name = f"{color}{base_name}{reset_code}"
+            self.ISOname = colored_name
+        # Validate edition/lang as before
         if self.has_edition() and hasattr(self, 'valid_editions'):
             edition = getattr(self, 'edition', None)
             if isinstance(edition, str):
@@ -171,25 +231,20 @@ class GenericUpdater(ABC):
         try:
             integrity_ok = self.check_integrity()
         except Exception as e:
-            if self.logging_callback:
-                self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check error: {e}")
+            self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check error: {e}")
             integrity_ok = -1
 
         if integrity_ok == -1:
-            if self.logging_callback:
-                self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check unavailable. Skipping update.")
+            self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check unavailable. Skipping update.")
             return -1
         elif integrity_ok is None:
-            if self.logging_callback:
-                self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check inconclusive. Assuming update needed.")
+            self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check inconclusive. Assuming update needed.")
             return None
         elif integrity_ok:
-            if self.logging_callback:
-                self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Local file passed integrity check. No update needed.")
+            self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Local file passed integrity check. No update needed.")
             return False
         else:
-            if self.logging_callback:
-                self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check failed or file missing. Update required.")
+            self.logging_callback(f"[{getattr(self, 'ISOname', self.__class__.__name__)}] Integrity check failed or file missing. Update required.")
             return True
 
 
@@ -210,8 +265,7 @@ class GenericUpdater(ABC):
 
         if not has_version_fn():
             if old_file:
-                if logging_callback:
-                    logging_callback(f"[GenericUpdater.install_latest_version] Renaming old file: {old_file}")
+                self.logging_callback(f"[GenericUpdater.install_latest_version] Renaming old file: {old_file}")
                 old_file.with_suffix(".old").replace(old_file)
 
         def resolve_placeholder(val, fallback=None):
@@ -238,8 +292,7 @@ class GenericUpdater(ABC):
             if '[[LANG]]' in download_link and lang:
                 download_link = download_link.replace('[[LANG]]', resolve_placeholder(lang))
             if any(ph in download_link for ph in ['[[VER]]', '[[EDITION]]', '[[LANG]]']):
-                if logging_callback:
-                    logging_callback(f"[install_latest_version] ERROR: Unresolved placeholder(s) in download_link: {download_link}")
+                self.logging_callback(f"[install_latest_version] ERROR: Unresolved placeholder(s) in download_link: {download_link}")
                 return None
 
         # Replace placeholders in new_file path (if Path)
@@ -252,8 +305,7 @@ class GenericUpdater(ABC):
             if '[[LANG]]' in new_name and lang:
                 new_name = new_name.replace('[[LANG]]', resolve_placeholder(lang))
             if any(ph in new_name for ph in ['[[VER]]', '[[EDITION]]', '[[LANG]]']):
-                if logging_callback:
-                    logging_callback(f"[install_latest_version] ERROR: Unresolved placeholder(s) in new_file: {new_name}")
+                self.logging_callback(f"[install_latest_version] ERROR: Unresolved placeholder(s) in new_file: {new_name}")
                 return None
             if new_name != new_file.name:
                 new_file = new_file.with_name(new_name)
@@ -262,27 +314,20 @@ class GenericUpdater(ABC):
         max_attempts = float('inf') if retries == -1 else max(1, retries)
         while True:
             attempt += 1
-            if logging_callback:
-                logging_callback(f"[install_latest_version] Download attempt {attempt} for {download_link}")
+            self.logging_callback(f"[install_latest_version] Download attempt {attempt} for {download_link}")
             if download_link is None:
-                if logging_callback:
-                    logging_callback(f"[install_latest_version] ERROR: No download link provided, cannot proceed with download.")
+                self.logging_callback(f"[install_latest_version] ERROR: No download link provided, cannot proceed with download.")
                 return None
-            if logging_callback:
-                logging_callback(f"[install_latest_version] Starting robust_download for {download_link}")
-            resp = robust_download(download_link, local_file=new_file, retries=1, delay=1, logging_callback=logging_callback)
-            if logging_callback:
-                logging_callback(f"[install_latest_version] robust_download finished for {download_link} (resp type: {type(resp)}, status: {resp})")
+            self.logging_callback(f"[install_latest_version] Starting robust_download for {download_link}")
+            resp = robust_download(download_link, local_file=new_file, retries=1, delay=1, logging_callback=self.logging_callback)
+            self.logging_callback(f"[install_latest_version] robust_download finished for {download_link} (resp type: {type(resp)}, status: {resp})")
             if resp is not True:
-                if logging_callback:
-                    logging_callback(f"[install_latest_version] Download failed (attempt {attempt}) for {download_link}")
+                self.logging_callback(f"[install_latest_version] Download failed (attempt {attempt}) for {download_link}")
                 if attempt >= max_attempts:
-                    if logging_callback:
-                        logging_callback(f"[install_latest_version] Exceeded max download attempts for {download_link}")
+                    self.logging_callback(f"[install_latest_version] Exceeded max download attempts for {download_link}")
                     return None
                 continue
-            if logging_callback:
-                logging_callback(f"[install_latest_version] File written to {new_file}, starting integrity check...")
+            self.logging_callback(f"[install_latest_version] File written to {new_file}, starting integrity check...")
             break
 
         return True

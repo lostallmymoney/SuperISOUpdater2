@@ -53,13 +53,17 @@ class RockyLinux(GenericUpdater):
         )
         return f"{DOWNLOAD_PAGE_URL}/{latest_version_str}/isos/x86_64/{file_path}"
 
-    def check_integrity(self) -> bool | None:
+    def check_integrity(self) -> bool | int | None:
         sha256_url = f"{self._get_download_link()}.CHECKSUM"
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
-        if not isinstance(local_file, Path) or download_link is None:
+        if download_link is None:
+            self.logging_callback("Could not resolve download link for integrity check.")
+            return -1
+        if not local_file.exists():
+            self.logging_callback("Local file does not exist for integrity check.")
             return None
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         return check_remote_integrity(
             hash_url=sha256_url,
@@ -74,8 +78,7 @@ class RockyLinux(GenericUpdater):
             return None
         download_a_tags = self.soup_download_page.find_all("a", href=True)
         if not download_a_tags:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not parse the download page for versions.")
+            self.logging_callback("Could not parse the download page for versions.")
             return None
 
         local_version = self._get_local_version()

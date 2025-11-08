@@ -30,24 +30,29 @@ class Rescuezilla(GenericUpdater):
         file_path = folder_path / FILE_NAME
         super().__init__(file_path, *args, **kwargs)
 
-        release = github_get_latest_version("rescuezilla", "rescuezilla")
-        self.release_info = parse_github_release(release)
+        release = github_get_latest_version("rescuezilla", "rescuezilla", self.logging_callback)
+        info = parse_github_release(release, self.logging_callback) if release is not None else None
+        self.release_info = info if info is not None else {}
 
     @cache
     def _get_download_link(self) -> str | None:
-        return self.release_info["files"][
-            str(self._get_complete_normalized_file_path(absolute=False))
-        ]
+        files = self.release_info.get("files") if self.release_info else None
+        if not files:
+            return None
+        key = str(self._get_complete_normalized_file_path(absolute=False))
+        return files.get(key)
 
 
     def check_integrity(self) -> bool | int | None:
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
         if not isinstance(local_file, Path) or download_link is None:
-            return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+            self.logging_callback("Could not resolve file path or download link for integrity check.")
+            return None
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
-        sha256_url = self.release_info["files"].get("SHA256SUM")
+        files = self.release_info.get("files") if self.release_info else None
+        sha256_url = files.get("SHA256SUM") if files else None
         if sha256_url:
             return check_remote_integrity(
                 hash_url=sha256_url,
@@ -56,13 +61,11 @@ class Rescuezilla(GenericUpdater):
                 parse_hash_args=([str(self._get_complete_normalized_file_path(absolute=False))], 0),
                 logging_callback=self.logging_callback,
             )
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] No SHA256 hash or URL available; skipping integrity check.")
         return False
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
-        tag = self.release_info.get("tag")
+        tag = self.release_info.get("tag") if self.release_info else None
         if not tag:
             return None
         return self._str_to_version(tag)

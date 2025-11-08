@@ -20,10 +20,12 @@ class GPartedLive(GenericUpdater):
 
     def _fetch_sha256_hash(self) -> str:
         try:
-            content = fetch_hashes_from_url("https://gparted.org/gparted-live/stable/CHECKSUMS.TXT")
+            content = fetch_hashes_from_url("https://gparted.org/gparted-live/stable/CHECKSUMS.TXT", self.logging_callback)
         except Exception as e:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not fetch CHECKSUMS.TXT: {e}")
+            self.logging_callback(f"Could not fetch CHECKSUMS.TXT: {e}")
+            return ""
+        if not content:
+            self.logging_callback(f"No checksum file content fetched.")
             return ""
         lines = content.splitlines()
         in_sha256 = False
@@ -50,8 +52,7 @@ class GPartedLive(GenericUpdater):
             return None
         ver = self._version_to_str(latest_version)
         if not ver:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not determine version for download link.")
+            self.logging_callback(f"Could not determine version for download link.")
             return None
         return f"https://downloads.sourceforge.net/gparted/gparted-live-{self._get_gparted_version_style(ver)}-amd64.iso"
 
@@ -65,14 +66,13 @@ class GPartedLive(GenericUpdater):
             return -1
         if not isinstance(local_file, Path):
             return -1
-        if not verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, download_link, logging_callback=self.logging_callback):
             return False
         sha256_val = self._fetch_sha256_hash()
         if not sha256_val:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not fetch SHA256 hash for file.")
+            self.logging_callback(f"Could not fetch SHA256 hash for file.")
             return -1
-        result = sha256_hash_check(local_file, sha256_val, package_name=ISOname, logging_callback=self.logging_callback)
+        result = sha256_hash_check(local_file, sha256_val, logging_callback=self.logging_callback)
         return bool(result)
 
     @cache
@@ -81,28 +81,27 @@ class GPartedLive(GenericUpdater):
         Extract the latest version from the SHA256SUMS section of the checksum file.
         """
         try:
-            content = fetch_hashes_from_url("https://gparted.org/gparted-live/stable/CHECKSUMS.TXT")
+            content = fetch_hashes_from_url("https://gparted.org/gparted-live/stable/CHECKSUMS.TXT", self.logging_callback)
         except Exception as e:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No checksum file available to determine version: {e}")
+            self.logging_callback(f"No checksum file available to determine version: {e}")
+            return None
+        if not content:
+            self.logging_callback(f"No checksum file content fetched for version extraction.")
             return None
         lines = [line for line in content.splitlines() if line.strip() and line.strip().endswith(".iso")]
         if not lines:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Checksum file is empty or no .iso lines found.")
+            self.logging_callback(f"Checksum file is empty or no .iso lines found.")
             return None
         # Use the last .iso line for the latest version
         version_line = lines[-1]
         split_line = version_line.split()
         if not split_line:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Last non-empty line in checksum file is empty or malformed: '{version_line}'")
+            self.logging_callback(f"Last non-empty line in checksum file is empty or malformed: '{version_line}'")
             return None
         version = split_line[-1]
         version_parts = version.split("-")
         if len(version_parts) < 4:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Version string does not have enough parts: '{version}'")
+            self.logging_callback(f"Version string does not have enough parts: '{version}'")
             return None
         version_str = ".".join(version_parts[2:4])
         return self._str_to_version(version_str)

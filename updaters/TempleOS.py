@@ -45,13 +45,12 @@ class TempleOS(GenericUpdater):
         download_link = self._get_download_link()
         if not isinstance(local_file, Path) or download_link is None:
             return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         md5_url = f"{DOWNLOAD_PAGE_URL}/md5sums.txt"
         resp = robust_get(md5_url, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp is None or resp.status_code != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not fetch md5sums.txt; skipping integrity check.")
+            self.logging_callback("Could not fetch md5sums.txt; skipping integrity check.")
             return False
         md5_sums = resp.text
         md5_sum = parse_hash(md5_sums, [self.server_file_name], 0, logging_callback=self.logging_callback)
@@ -63,8 +62,7 @@ class TempleOS(GenericUpdater):
     def _get_latest_version(self) -> list[str] | None:
         file_list_soup: Tag | None = self.soup_download_page.find("pre")  # type: ignore
         if not file_list_soup:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find download links list.")
+            self.logging_callback("Could not find download links list.")
             return None
 
         page_text = file_list_soup.getText()
@@ -80,8 +78,7 @@ class TempleOS(GenericUpdater):
                 date = " ".join(line.strip().split()[1:-1])
                 break
         if not date:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find date on download page.")
+            self.logging_callback("Could not find date on download page.")
             return None
 
         datetime_date = datetime.strptime(date, r"%d-%b-%Y %H:%M")

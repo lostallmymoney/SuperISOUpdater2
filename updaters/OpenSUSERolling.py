@@ -40,7 +40,7 @@ class OpenSUSERolling(GenericUpdater):
         download_link = self._get_download_link()
         if not isinstance(local_file, Path) or download_link is None:
             return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         return check_remote_integrity(
             hash_url=sha256_url,

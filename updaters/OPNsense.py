@@ -41,12 +41,11 @@ class OPNsense(GenericUpdater):
     def _get_download_link(self) -> str | None:
         return f"{DOWNLOAD_PAGE_URL}/{self._get_complete_normalized_file_path(absolute=False)}.bz2"
 
-    def check_integrity(self) -> bool | None:
+    def check_integrity(self) -> bool | int | None:
         latest_version = self._get_latest_version()
         if latest_version is None:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not determine the latest version for integrity check.")
-            return False
+            self.logging_callback("Could not determine the latest version for integrity check.")
+            return -1
 
         latest_version_str = self._version_to_str(latest_version)
         pub_url = f"{DOWNLOAD_PAGE_URL}/OPNsense-{latest_version_str}.pub"
@@ -56,16 +55,15 @@ class OPNsense(GenericUpdater):
         pub_resp = robust_get(pub_url, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         sig_resp = robust_get(sig_url, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if not pub_resp or not sig_resp or pub_resp.status_code != 200 or sig_resp.status_code != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Failed to download pub or sig file for integrity check.")
-            return False
+            self.logging_callback("Failed to download pub or sig file for integrity check.")
+            return -1
 
         return verify_opnsense_signature(
-                pub_resp.content,
-                sig_resp.content,
-                image_path,
-                logging_callback=self.logging_callback
-            )
+            pub_resp.content,
+            sig_resp.content,
+            image_path,
+            logging_callback=self.logging_callback
+        )
 
     def install_latest_version(self, retries: int = 0) -> bool | None:
         complete_path = self._get_complete_normalized_file_path(absolute=True)
@@ -76,22 +74,18 @@ class OPNsense(GenericUpdater):
         # Download the .bz2 archive
         download_url = self._get_download_link()
         if not isinstance(download_url, str) or not download_url:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Download URL is invalid: {download_url}")
+            self.logging_callback(f"Download URL is invalid: {download_url}")
             return False
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Downloading archive: {download_url} -> {archive_path}")
+        self.logging_callback(f"Downloading archive: {download_url} -> {archive_path}")
         resp = robust_download(download_url, local_file=archive_path, retries=1, delay=1, logging_callback=self.logging_callback)
         if resp is not True:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Download failed for archive: {download_url}")
+            self.logging_callback(f"Download failed for archive: {download_url}")
             return False
 
         # Integrity check
         latest_version = self._get_latest_version()
         if latest_version is None:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not determine the latest version for integrity check.")
+            self.logging_callback("Could not determine the latest version for integrity check.")
             return False
         latest_version_str = self._version_to_str(latest_version)
         sha256_url = f"{DOWNLOAD_PAGE_URL}/OPNsense-{latest_version_str}-checksums-amd64.sha256"
@@ -111,8 +105,7 @@ class OPNsense(GenericUpdater):
                 for chunk in iter(lambda: src.read(8192), b""):
                     dst.write(chunk)
         except Exception as e:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Failed to extract archive: {e}")
+            self.logging_callback(f"Failed to extract archive: {e}")
             return False
 
         # Remove the archive after extraction
@@ -127,9 +120,7 @@ class OPNsense(GenericUpdater):
     def _get_latest_version(self) -> list[str] | None:
         download_a_tags = self.soup_download_page.find_all("a", href=True) if self.soup_download_page else []
         if not download_a_tags:
-            msg = f"[{ISOname}] Could not parse the download page for version info."
-            if self.logging_callback:
-                self.logging_callback(msg)
+            self.logging_callback("Could not parse the download page for version info.")
             return None
 
         local_version = self._get_local_version()

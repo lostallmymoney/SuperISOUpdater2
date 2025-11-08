@@ -36,8 +36,7 @@ class TrueNAS(GenericUpdater):
             return None
         a_tag = self.soup_download_page.find("a", attrs={"id": "downloadTrueNAS"})
         if not a_tag:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find HTML tag containing download URL")
+            self.logging_callback("Could not find HTML tag containing download URL")
             return ""
         return a_tag["href"]  # type: ignore
 
@@ -47,7 +46,7 @@ class TrueNAS(GenericUpdater):
         local_file = self._get_complete_normalized_file_path(absolute=True)
         if not isinstance(local_file, Path) or not isinstance(download_link, str):
             return None
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         # Use check_remote_integrity for hash check
         # For TrueNAS, the .sha256 file contains only the hash, no filename

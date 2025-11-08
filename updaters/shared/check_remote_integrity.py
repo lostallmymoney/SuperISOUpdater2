@@ -2,16 +2,22 @@ from updaters.shared.robust_get import robust_get
 from updaters.shared.parse_hash import parse_hash
 from updaters.shared.sha256_hash_check import hash_check
 
-def check_remote_integrity(hash_url, local_file, hash_type, parse_hash_args, parse_hash_kwargs=None, logging_callback=None):
+def check_remote_integrity(hash_url, local_file, hash_type, parse_hash_args, logging_callback, parse_hash_kwargs=None):
     """
     Fetch hash file from hash_url, parse the correct hash, and check integrity of local_file.
     parse_hash_args: ([match_strings_in_line], hash_position_in_line)
     """
+    RED = '\033[91m'
+    RESET = '\033[0m'
     try:
+        # Return None if the file does not exist
+        from pathlib import Path
+        if not Path(local_file).is_file():
+            logging_callback(f"[check_remote_integrity] File not found: {local_file}")
+            return None
         resp = robust_get(hash_url, delay=3, retries=10, logging_callback=logging_callback)
         if resp is None or resp.status_code != 200:
-            if logging_callback:
-                logging_callback(f"[check_remote_integrity] Could not fetch hash file from {hash_url}, resp={resp}")
+            logging_callback(f"{RED}[check_remote_integrity] Could not fetch hash file from {hash_url}, resp={resp}{RESET}")
             return False
         hashes = resp.text
         match_strings_in_line, hash_position_in_line = parse_hash_args
@@ -22,17 +28,14 @@ def check_remote_integrity(hash_url, local_file, hash_type, parse_hash_args, par
             # Try to log the last non-empty line for debugging
             lines = [line for line in hashes.strip().splitlines() if line.strip()]
             last_line = lines[-1] if lines else ''
-            if logging_callback:
-                logging_callback(f"[check_remote_integrity] Could not extract hash from {hash_url}. Last non-empty line: '{last_line}'")
+            logging_callback(f"{RED}[check_remote_integrity] Could not extract hash from {hash_url}. Last non-empty line: '{last_line}'{RESET}")
             return False
         result = hash_check(local_file, hash_val, hash_type=hash_type, logging_callback=logging_callback)
-        if logging_callback:
-            if result:
-                logging_callback(f"[check_remote_integrity] Integrity OK for {local_file}")
-            else:
-                logging_callback(f"[check_remote_integrity] Integrity FAIL for {local_file}")
+        if result:
+            logging_callback(f"[check_remote_integrity] Integrity OK for {local_file}")
+        else:
+            logging_callback(f"[check_remote_integrity] Integrity FAIL for {local_file}")
         return result
     except Exception as e:
-        if logging_callback:
-            logging_callback(f"[check_remote_integrity] Integrity check error: {e}")
+        logging_callback(f"{RED}[check_remote_integrity] Integrity check error: {e}{RESET}")
         return False

@@ -31,15 +31,14 @@ class Proxmox(GenericUpdater):
         This class inherits from the abstract base class GenericUpdater.
     """
 
-    def __init__(self, folder_path: Path, edition: str, logging_callback=None) -> None:
+    def __init__(self, folder_path: Path, edition: str, **kwargs) -> None:
         self.valid_editions = [
             "ve",
             "mail-gateway",
-            "backup-server",
         ]
         self.edition = edition
         file_path = folder_path / FILE_NAME
-        super().__init__(file_path, logging_callback=logging_callback)
+        super().__init__(file_path, **kwargs)
 
         # Make the parameter case insensitive, and find back the correct case using valid_editions
         self.edition = next(
@@ -72,19 +71,16 @@ class Proxmox(GenericUpdater):
             return self._str_to_version(href.split('_')[1].split('.iso')[0])
 
         if not self.soup_download_page:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not parse the download page (no soup)")
+            self.logging_callback("Could not parse the download page (no soup)")
             return None
         downloads_list: Tag | None = self.soup_download_page.find("pre")  # type: ignore
         if not downloads_list:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not parse the download page")
+            self.logging_callback("Could not parse the download page")
             return None
 
         download_items = downloads_list.find_all("a")
         if not download_items:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not parse the list of download links")
+            self.logging_callback("Could not parse the list of download links")
             return None
 
         download_links: list[str] = []
@@ -93,8 +89,7 @@ class Proxmox(GenericUpdater):
             if href is not None and isinstance(href, str) and self.edition in href:
                 download_links.append(href)
         if not download_links:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find links for this edition")
+            self.logging_callback("Could not find links for this edition")
             return None
 
         latest_version = []
@@ -106,14 +101,15 @@ class Proxmox(GenericUpdater):
 
         return latest_version
 
-    def check_integrity(self) -> bool | None:
+    def check_integrity(self) -> bool | int | None:
         sha256_url = f"{DOWNLOAD_PAGE_URL}/SHA256SUMS"
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
         # Ensure local_file is a Path before passing to verify_file_size
         if not isinstance(local_file, Path) or download_link is None:
-            return False
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+            self.logging_callback("Could not resolve file path or download link for integrity check.")
+            return None
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         return check_remote_integrity(
             hash_url=sha256_url,

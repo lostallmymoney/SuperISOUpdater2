@@ -51,7 +51,7 @@ class Ubuntu(GenericUpdater):
         download_link = self._get_download_link()
         if not isinstance(local_file, Path) or download_link is None:
             return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
         return check_remote_integrity(
             hash_url=sha256_url,
@@ -66,33 +66,28 @@ class Ubuntu(GenericUpdater):
     def _get_latest_version(self) -> list[str] | None:
         download_categories = self.soup_download_page.find_all("div", attrs={"class": "col-4"}) if self.soup_download_page else []
         if not download_categories:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] We were not able to parse the download categories.")
+            self.logging_callback("We were not able to parse the download categories.")
             return None
         downloads = next(
             (download_category for download_category in download_categories if (h4 := download_category.find("h4")) and h4.text == f"{self.edition} Releases"),
             None
         )
         if not downloads:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] We were not able to parse the {self.edition} downloads.")
+            self.logging_callback(f"We were not able to parse the {self.edition} downloads.")
             return None
         latest = downloads.find("a", href=True)
         if not latest:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] We were not able to find {self.edition} downloads.")
+            self.logging_callback(f"We were not able to find {self.edition} downloads.")
             return None
         xy_version = latest.getText().split()[1]
         resp = robust_get(f"{DOWNLOAD_PAGE_URL}/{xy_version}", retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp is None or resp.status_code != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Failed to fetch version page from '{DOWNLOAD_PAGE_URL}/{xy_version}'")
+            self.logging_callback(f"Failed to fetch version page from '{DOWNLOAD_PAGE_URL}/{xy_version}'")
             return None
         soup_version_page = BeautifulSoup(resp.content.decode("utf-8"), features="html.parser")
         title = soup_version_page.find("title")
         if not title:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] We were not able to find the title of the version page.")
+            self.logging_callback("We were not able to find the title of the version page.")
             return None
         title_text = title.getText()
         return self._str_to_version(title_text.split()[1])

@@ -31,9 +31,8 @@ class ArchLinux(GenericUpdater):
             href = a_tag.get("href")
             if href and "archlinux" in href:
                 return self._str_to_version(a_tag.getText().split("-")[1])
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Could not parse latest version from download page")
-            return None
+        self.logging_callback("Could not parse latest version from download page")
+        return None
 
     @cache
     def _get_download_link(self) -> str | None:
@@ -45,8 +44,7 @@ class ArchLinux(GenericUpdater):
     def check_integrity(self) -> bool | int | None:
         version = self._get_latest_version()
         if not version:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No version info for integrity check.")
+            self.logging_callback("No version info for integrity check.")
             return -1
         file_path = self.folder_path / FILE_NAME.replace("[[VER]]", self._version_to_str(version))
         return check_remote_integrity(

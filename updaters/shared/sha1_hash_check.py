@@ -3,7 +3,7 @@ from pathlib import Path
 
 READ_CHUNK_SIZE = 524288
 
-def sha1_hash_check(file: Path, hash: str, logging_callback=None) -> bool:
+def sha1_hash_check(file: Path, hash: str, logging_callback) -> bool:
     """
     Calculate the SHA-1 hash of a given file and compare it with a provided hash value.
     """
@@ -12,6 +12,11 @@ def sha1_hash_check(file: Path, hash: str, logging_callback=None) -> bool:
         while chunk := f.read(READ_CHUNK_SIZE):
             file_hash.update(chunk)
     result = hash.lower() == file_hash.hexdigest()
-    if logging_callback:
-        logging_callback(f"[sha1_hash_check] check: {'OK' if result else 'FAILED'} (expected {hash.lower()}, got {file_hash.hexdigest()})")
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    RESET = '\033[0m'
+    if result:
+        logging_callback(f"{GREEN}SHA1 check: OK (expected {hash.lower()}, got {file_hash.hexdigest()}){RESET}")
+    else:
+        logging_callback(f"{RED}SHA1 check: FAILED (expected {hash.lower()}, got {file_hash.hexdigest()}){RESET}")
     return result

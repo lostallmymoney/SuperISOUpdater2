@@ -29,8 +29,7 @@ class Clonezilla(GenericUpdater):
     def _get_download_link(self) -> str | None:
         latest_version = self._get_latest_version()
         if not isinstance(latest_version, list):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] _get_download_link: latest_version is not list, got {type(latest_version).__name__}: {latest_version}")
+            self.logging_callback(f"_get_download_link: latest_version is not list, got {type(latest_version).__name__}: {latest_version}")
             return None
         ver = self._version_to_str(latest_version)
         repo = "https://downloads.sourceforge.net"
@@ -40,41 +39,35 @@ class Clonezilla(GenericUpdater):
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
         if not isinstance(local_file, Path):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] check_integrity: local_file is not Path")
+            self.logging_callback("check_integrity: local_file is not Path")
             return -1
         if not isinstance(download_link, str):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] check_integrity: download_link is not str")
+            self.logging_callback("check_integrity: download_link is not str")
             return -1
         # First, verify file size
-        if not verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, download_link, logging_callback=self.logging_callback):
             return False
         # Fetch and process the checksum page as in the original SISOU logic
         resp = robust_get(f"{DOMAIN}/downloads/stable/checksums-contents.php", retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp is None or resp.status_code != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] check_integrity: Failed to fetch checksums page: HTTP {getattr(resp, 'status_code', 'No Response')}")
+            self.logging_callback(f"check_integrity: Failed to fetch checksums page: HTTP {getattr(resp, 'status_code', 'No Response')}")
             return -1
         soup = BeautifulSoup(resp.content.decode("utf-8"), features="html.parser")
         pre: Tag | None = soup.find("pre")  # type: ignore
         if not pre:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] check_integrity: Unable to extract <pre> elements from checksum; skipping integrity check.")
+            self.logging_callback("check_integrity: Unable to extract <pre> elements from checksum; skipping integrity check.")
             return -1
         checksums = pre.text.split("###")
         sha256_sums = next((c for c in checksums if "SHA256SUMS" in c), None)
         if not sha256_sums:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] check_integrity: Could not find SHA256 sum; skipping integrity check.")
+            self.logging_callback("check_integrity: Could not find SHA256 sum; skipping integrity check.")
             return -1
         hash_val = parse_hash(sha256_sums, ["amd64.iso"], 0, logging_callback=self.logging_callback)
         if not hash_val:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] check_integrity: Could not parse SHA256 hash; skipping integrity check.")
+            self.logging_callback("check_integrity: Could not parse SHA256 hash; skipping integrity check.")
             return -1
         # Now check the hash
-        return sha256_hash_check(local_file, hash_val, package_name=ISOname, logging_callback=self.logging_callback)
+        return sha256_hash_check(local_file, hash_val, logging_callback=self.logging_callback)
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
@@ -85,8 +78,7 @@ class Clonezilla(GenericUpdater):
         soup = BeautifulSoup(resp.content.decode("utf-8"), features="html.parser")
         first_paragraph: Tag | None = soup.find("p")  # type: ignore
         if not first_paragraph:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Unable to extract <p> elements from changelog")
+            self.logging_callback("Unable to extract <p> elements from changelog")
             return None
         version_raw = first_paragraph.getText().split()[-1]
         # Only keep numeric and dot components for version comparison

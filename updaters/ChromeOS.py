@@ -16,8 +16,7 @@ class ChromeOS(GenericUpdater):
     @cache
     def _get_download_link(self) -> str | None:
         if not self.cur_edition_info:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No edition info available for download link.")
+            self.logging_callback("No edition info available for download link.")
             return None
         return self.cur_edition_info.get("url")
     
@@ -36,8 +35,7 @@ class ChromeOS(GenericUpdater):
             if d["channel"].lower() == self.edition
         )
         if not self.cur_edition_info:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No release info found for edition '{self.edition}'")
+            self.logging_callback(f"No release info found for edition '{self.edition}'")
             self.cur_edition_info = None
             return
 
@@ -46,13 +44,11 @@ class ChromeOS(GenericUpdater):
         if archive_path is None or not Path(archive_path).is_file():
             return None
         if not self.cur_edition_info:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No edition info available for integrity check.")
+            self.logging_callback("No edition info available for integrity check.")
             return -1
         sha1_sum = self.cur_edition_info.get("sha1")
         if not sha1_sum:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No SHA1 hash found for integrity check.")
+            self.logging_callback(f"No release info found for edition '{self.edition}'")
             return -1
         return sha1_hash_check(archive_path, sha1_sum, logging_callback=self.logging_callback)
 
@@ -81,8 +77,7 @@ class ChromeOS(GenericUpdater):
         sha1_sum = self.cur_edition_info.get("sha1")
         if not sha1_sum:
             archive_path.unlink(missing_ok=True)
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No SHA1 hash found for integrity check.")
+            self.logging_callback("No SHA1 hash found for integrity check.")
             return None
         if not sha1_hash_check(archive_path, sha1_sum, logging_callback=self.logging_callback):
             archive_path.unlink(missing_ok=True)
@@ -92,8 +87,7 @@ class ChromeOS(GenericUpdater):
         bin_candidates = [f for f in file_list if f.lower().endswith('.bin')]
         if not bin_candidates:
             archive_path.unlink(missing_ok=True)
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No .bin file found in archive.")
+            self.logging_callback("No .bin file found in archive.")
             return None
         to_extract = bin_candidates[0]
         # Extract the .bin file

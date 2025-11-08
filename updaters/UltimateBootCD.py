@@ -23,8 +23,7 @@ class UltimateBootCD(GenericUpdater):
     def _get_latest_version(self) -> list[str] | None:
         resp = robust_get(OLDERGEEKS_PAGE_URL, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if not resp or getattr(resp, 'status_code', None) != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[UltimateBootCD] Could not load download page: {OLDERGEEKS_PAGE_URL}")
+            self.logging_callback("Could not load download page: {}".format(OLDERGEEKS_PAGE_URL))
             return None
         soup = BeautifulSoup(resp.content.decode(resp.encoding or "utf-8", errors="replace"), features="html.parser")
         h1 = soup.find("h1")
@@ -34,8 +33,7 @@ class UltimateBootCD(GenericUpdater):
             if m:
                 version = m.group(1)
         if not version:
-            if self.logging_callback:
-                self.logging_callback(f"[UltimateBootCD] Could not parse version from heading.")
+            self.logging_callback("Could not parse version from heading.")
             return None
         return version.split('.')
 
@@ -56,16 +54,13 @@ class UltimateBootCD(GenericUpdater):
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = OLDERGEEKS_DL_URL
         if not isinstance(local_file, Path):
-            if self.logging_callback:
-                self.logging_callback(f"[UltimateBootCD] Could not resolve local file path for integrity check.")
+            self.logging_callback("Could not resolve local file path for integrity check.")
             return -1
         if download_link is None:
-            if self.logging_callback:
-                self.logging_callback(f"[UltimateBootCD] No valid download link for integrity check.")
+            self.logging_callback("No valid download link for integrity check.")
             return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
-            if self.logging_callback:
-                self.logging_callback(f"[UltimateBootCD] File size check failed.")
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
+            self.logging_callback("File size check failed.")
             return False
         # Fetch the OlderGeeks page and parse the md5sum
         resp = robust_get(OLDERGEEKS_PAGE_URL, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
@@ -76,12 +71,11 @@ class UltimateBootCD(GenericUpdater):
             if m:
                 md5sum = m.group(1)
         if not md5sum:
-            if self.logging_callback:
-                self.logging_callback(f"[UltimateBootCD] Could not find md5sum on the page.")
+            self.logging_callback("Could not find md5sum on the page.")
             return False
         # Use shared md5_hash_check with the found md5sum
         from updaters.shared.md5_hash_check import md5_hash_check
         result = md5_hash_check(local_file, md5sum, logging_callback=self.logging_callback)
-        if not result and self.logging_callback:
-            self.logging_callback(f"[UltimateBootCD] MD5 check failed. Expected {md5sum}.")
+        if not result:
+            self.logging_callback(f"MD5 check failed. Expected {md5sum}.")
         return result

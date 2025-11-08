@@ -5,13 +5,12 @@ from tqdm import tqdm
 import sys
 
 # --- robust_get: for in-memory requests only ---
-def robust_get(url: str, method: str = "GET", retries: int = 5, delay: float = 1.0, logging_callback=None, redirects=True, **kwargs):
+def robust_get(url: str, logging_callback, method: str = "GET", retries: int = 5, delay: float = 1.0, redirects=True, timeout: float = 10.0, **kwargs):
     """
     Robust HTTP(S) request with retry, returns a response-like object with .content and .iter_content().
     """
     def report(msg):
-        if logging_callback:
-            logging_callback(msg)
+        logging_callback(msg)
     # Log the URL being fetched using report()
     report(f"[robust_get] Fetching URL: {url}")
     attempt = 0
@@ -22,7 +21,7 @@ def robust_get(url: str, method: str = "GET", retries: int = 5, delay: float = 1
         try:
             kwargs_no_headers = dict(kwargs)
             headers = kwargs_no_headers.pop("headers", {}).copy()
-            resp = requests.request(method, url, headers=headers, timeout=5, allow_redirects=redirects, **kwargs_no_headers)
+            resp = requests.request(method, url, headers=headers, timeout=timeout, allow_redirects=redirects, **kwargs_no_headers)
             if resp.status_code in {301, 302, 303, 307, 308}:
                 location = resp.headers.get('Location', '(no Location header)')
                 report(f"Redirect ({resp.status_code}) for {url} to {location}")

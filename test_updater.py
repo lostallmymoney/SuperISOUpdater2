@@ -46,7 +46,7 @@ def test_updater(module_path, class_name, file_path, **kwargs):
                     langs = params['langs']
                     if isinstance(langs, list) and langs:
                         updater_kwargs_edition['lang'] = langs[0]
-                updater = updater_cls(Path(file_path), logging_callback=print, **updater_kwargs_edition)
+                updater = updater_cls(Path(file_path), parent_logging_callback=print, **updater_kwargs_edition)
                 update_status = updater.check_for_updates()
                 print("check_for_updates:", update_status)
                 max_attempts = 1
@@ -75,7 +75,7 @@ def test_updater(module_path, class_name, file_path, **kwargs):
                     langs = params['langs']
                     if isinstance(langs, list) and langs:
                         updater_kwargs['lang'] = langs[0]
-            updater = updater_cls(Path(file_path), logging_callback=print, **updater_kwargs)
+            updater = updater_cls(Path(file_path), parent_logging_callback=print, **updater_kwargs)
             update_status = updater.check_for_updates()
             print("check_for_updates:", update_status)
             max_attempts = 1
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         if len(sys.argv) == 4:
             module_path, class_name, file_path = sys.argv[1:4]
             config_file = Path("config.toml.default")
-            config = parse_config(config_file)
+            config = parse_config(config_file, print)
             test_updater(module_path, class_name, file_path, config=config)
         elif len(sys.argv) == 3:
             # Accept: python3 test_updaters.py <file_path> <class_name>
@@ -119,7 +119,7 @@ if __name__ == "__main__":
                 f"generic.{class_name}",
             ]
             config_file = Path("config.toml.default")
-            config = parse_config(config_file)
+            config = parse_config(config_file, print)
             for module_path in possible_paths:
                 try:
                     test_updater(module_path, class_name, file_path, config=config)

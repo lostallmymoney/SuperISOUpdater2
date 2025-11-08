@@ -42,13 +42,12 @@ class Tails(GenericUpdater):
         download_link = self._get_download_link()
         if download_link is None or not isinstance(local_file, Path):
             return -1
-        if verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback) is False:
+        if verify_file_size(local_file, download_link, logging_callback=self.logging_callback) is False:
             return False
 
         resp_json = robust_get(JSON_URL, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp_json is None or resp_json.status_code != 200:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not fetch Tails JSON metadata for SHA256 check.")
+            self.logging_callback("Could not fetch Tails JSON metadata for SHA256 check.")
             return False
         try:
             data = json.loads(resp_json.text)
@@ -62,22 +61,19 @@ class Tails(GenericUpdater):
                 if img_sha256:
                     break
             if not img_sha256:
-                if self.logging_callback:
-                    self.logging_callback(f"[{ISOname}] No SHA256 found for .img in Tails JSON metadata.")
+                self.logging_callback("No SHA256 found for .img in Tails JSON metadata.")
                 return False
         except Exception as e:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Error parsing Tails JSON metadata: {e}")
+            self.logging_callback(f"Error parsing Tails JSON metadata: {e}")
             return False
 
-        return sha256_hash_check(local_file, img_sha256, package_name=ISOname, logging_callback=self.logging_callback)
+        return sha256_hash_check(local_file, img_sha256, logging_callback=self.logging_callback)
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
         download_a_tags = self.soup_download_page.find_all("a", href=True) if self.soup_download_page else []
         if not download_a_tags:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No valid {ISOname} version found on the download page.")
+            self.logging_callback("No valid Tails version found on the download page.")
             return None
 
         local_version = self._get_local_version()

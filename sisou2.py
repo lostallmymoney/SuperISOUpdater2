@@ -1,5 +1,7 @@
 import argparse
+import concurrent.futures
 import logging
+import threading
 from functools import cache
 from pathlib import Path
 from typing import Type
@@ -7,9 +9,10 @@ from updaters.generic.GenericUpdater import GenericUpdater
 from updaters.shared.parse_config import parse_config
 
 
+_print_lock = threading.Lock()
 def logging_callback(msg):
-    # Sequential logging; no threading, so no lock needed.
-    print(msg, flush=True)
+    with _print_lock:
+        print(msg, flush=True)
 
 @cache
 def get_available_updaters() -> list[Type[GenericUpdater]]:
@@ -60,39 +63,43 @@ def stack_updaters(
         config (dict): The configuration dictionary.
         updater_list (list[Type[GenericUpdater]]): A list of available updater classes.
     """
-    for key, value in config.items():
-        # If the key's name is the name of an updater, run said updater using the values as argument, otherwise assume it's a folder's name
-        if key in [updater.__name__ for updater in updater_list]:
-            updater_class = next(
-                updater for updater in updater_list if updater.__name__ == key
-            )
+    if isinstance(config, dict):
+        for key, value in config.items():
+            # If the key's name is the name of an updater, run said updater using the values as argument, otherwise assume it's a folder's name
+            if key in [updater.__name__ for updater in updater_list]:
+                updater_class = next(
+                    updater for updater in updater_list if updater.__name__ == key
+                )
 
-            params: list[dict] = [{}]
+                params: list[dict] = [{}]
 
-            editions = value.get("editions", [])
-            langs = value.get("langs", [])
+                editions = value.get("editions", [])
+                langs = value.get("langs", [])
 
-            if editions and langs:
-                params = [
-                    {"edition": edition, "lang": lang}
-                    for edition in editions
-                    for lang in langs
-                ]
-            elif editions:
-                params = [{"edition": edition} for edition in editions]
-            elif langs:
-                params = [{"lang": lang} for lang in langs]
+                if editions and langs:
+                    params = [
+                        {"edition": edition, "lang": lang}
+                        for edition in editions
+                        for lang in langs
+                    ]
+                elif editions:
+                    params = [{"edition": edition} for edition in editions]
+                elif langs:
+                    params = [{"lang": lang} for lang in langs]
 
-            for param in params:
-                try:
-                    updaters_list.append(updater_class(install_path, logging_callback=logging_callback, **param))
-                except Exception:
-                    installer_for = f"{key} {param}"
-                    logging.exception(
-                        f"[{installer_for}] An error occurred while trying to add the installer. See traceback below."
-                    )           
-        else:
-            stack_updaters(install_path / key, value, updater_list)
+                for param in params:
+                    try:
+                        updaters_list.append(updater_class(install_path, parent_logging_callback=logging_callback, **param))
+                    except Exception:
+                        installer_for = f"{key} {param}"
+                        logging.exception(
+                            f"[{installer_for}] An error occurred while trying to add the installer. See traceback below."
+                        )           
+            else:
+                stack_updaters(install_path / key, value, updater_list)
+    elif isinstance(config, list):
+        for item in config:
+            stack_updaters(install_path, item, updater_list)
         
     
 
@@ -102,8 +109,13 @@ def stack_updaters(
 
 def main():
     """Main function to run the update process."""
-    parser = argparse.ArgumentParser(description="Process a file and set log level")
 
+    parser = argparse.ArgumentParser(description="Process a file and set log level")
+    parser.add_argument(
+        "--testrun",
+        action="store_true",
+        help="Only check which updaters need to be updated, do not download or install."
+    )
     # Add the positional argument for the file path
     parser.add_argument("ventoy_path", help="Path to the Ventoy drive")
 
@@ -130,6 +142,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.testrun:
+        print("\n==============================\nRUNNING TEST RUN\n==============================\n")
+
     # Parse retries
     retries = args.retries
     if isinstance(retries, str) and retries.lower() == "all":
@@ -171,7 +187,7 @@ def main():
                 )
                 return
 
-    config = parse_config(config_file)
+    config = parse_config(config_file, logging_callback)
     if not config:
         raise ValueError("Configuration file could not be parsed or is empty")
 
@@ -181,32 +197,65 @@ def main():
 
 
     global updaters_list
-    print(f"Found : {len(updaters_list)} updaters to check")
-    # Log all updaters and their edition/lang after stacking
-    print("--- Enabled updaters found (class, edition, lang) ---")
-    for updater in updaters_list:
-        cls_name = updater.__class__.__name__
-        edition = getattr(updater, "edition", None)
-        lang = getattr(updater, "lang", None)
-        print(f"{cls_name} | edition: {edition} | lang: {lang}")
-    print("--- End of updaters list ---")
+    # Log all updaters and their edition/lang after stacking (optional, can be commented out if not needed)
+    # print("--- Enabled updaters found (class, edition, lang) ---")
+    # for updater in updaters_list:
+    #     cls_name = updater.__class__.__name__
+    #     edition = getattr(updater, "edition", None)
+    #     lang = getattr(updater, "lang", None)
+    #     print(f"{cls_name} | edition: {edition} | lang: {lang}")
+    # print("--- End of updaters list ---")
 
-    # After updaters are accumulated, check them sequentially
-    filtered: list[GenericUpdater | None] = []
-    for updater in updaters_list:
+    # After updaters are accumulated, filter them in parallel using 4 threads
+    def check_and_filter(updater):
         try:
             result = updater.check_for_updates()
-            if result is True or result is None:
-                filtered.append(updater)
+            return (updater, result)
+        except Exception as e:
+            return (updater, -1)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(check_and_filter, updaters_list))
+    # Separate updaters that need update and those that do not
+    updaters_to_update = [u for u, keep in results if keep]
+    updaters_discarded = [u for u, keep in results if not keep]
+    updaters_list[:] = updaters_to_update
+
+
+
+    if args.testrun:
+        # Categorize by result
+        failed = []
+        ok = []
+        to_download = []
+        for updater, result in results:
+            entry = (updater.__class__.__name__, getattr(updater, "edition", None), getattr(updater, "lang", None))
+            if result == -1:
+                failed.append(entry)
+            elif result is False:
+                ok.append(entry)
             else:
-                filtered.append(None)
-        except Exception:
-            filtered.append(None)
-    # Only keep updaters that returned True or None (need update)
-    updaters_list[:] = [u for u in filtered if u is not None]
+                to_download.append(entry)
 
-    print(f"Found : {len(updaters_list)} updaters to update")
+        print(f"\nChecked {len(results)} updaters.")
+        print("--- Test Run: Updaters that FAILED (integrity unavailable, -1) ---")
+        for cls_name, edition, lang in failed:
+            print(f"{cls_name} | edition: {edition} | lang: {lang}")
+        print("--- End of updaters failed ---\n")
+        print(f"Total: {len(failed)} updaters failed.\n")
 
+        print("--- Test Run: Updaters that are OK (no update needed) ---")
+        for cls_name, edition, lang in ok:
+            print(f"{cls_name} | edition: {edition} | lang: {lang}")
+        print("--- End of updaters OK ---\n")
+        print(f"Total: {len(ok)} updaters are OK.\n")
+
+        print("--- Test Run: Updaters that would be downloaded ---")
+        for cls_name, edition, lang in to_download:
+            print(f"{cls_name} | edition: {edition} | lang: {lang}")
+        print("--- End of updaters to download ---\n")
+        print(f"Total: {len(to_download)} updaters would be downloaded.")
+        return
     for updater in updaters_list:
         run_updater(updater)
 

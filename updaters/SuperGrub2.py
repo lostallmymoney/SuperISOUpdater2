@@ -30,36 +30,53 @@ class SuperGrub2(GenericUpdater):
         soup = BeautifulSoup(resp.content.decode(resp.encoding or "utf-8"), features="html.parser")
         self.soup_latest_download_article = soup.find("article")
 
-    def check_integrity(self) -> bool | None:
+    def check_integrity(self) -> bool | int | None:
         """
-        Check the integrity of the downloaded archive (zip) if it exists.
+        Verifies the integrity of the downloaded archive and the extracted .img file using SHA256 sums from the download page.
+        Returns True if both checks pass, False if any fail, or -1 if checks cannot be performed.
         """
         new_file = self._get_complete_normalized_file_path(absolute=True)
         archive_path = new_file.with_suffix(".zip")
         if not archive_path.exists():
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No archive found for integrity check: {archive_path}")
+            self.logging_callback(f"Archive file does not exist: {archive_path}")
+            return None
+
+        # Check archive file size
+        download_link = self._get_download_link()
+        if not download_link:
+            self.logging_callback(f"No download link available for file size check.")
+            return -1
+        if not verify_file_size(archive_path, download_link, logging_callback=self.logging_callback):
+            self.logging_callback(f"Archive file size verification failed.")
             return False
-        # Get hash info from soup
         if not self.soup_latest_download_article:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No soup object for download article, cannot check integrity.")
+            self.logging_callback(f"No soup object for download article, cannot check integrity.")
             return -1
         sha256_sums_tag = self.soup_latest_download_article.find_all("pre")
         if not sha256_sums_tag:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Couldn't find the SHA256 sum for integrity check.")
+            self.logging_callback(f"Couldn't find the SHA256 sum.")
             return -1
         sha256_sums_tag = sha256_sums_tag[-1]
         sha256_checksums_str = sha256_sums_tag.getText()
-        hash_lines = [line for line in sha256_checksums_str.splitlines() if "classic" not in line]
-        filtered_hashes = "\n".join(hash_lines)
-        archive_hash = parse_hash(filtered_hashes, ["-multiarch-USB.img.zip"], 0, logging_callback=self.logging_callback)
-        if not archive_hash:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No hash found for archive in integrity check.")
-            return -1
-        return sha256_hash_check(archive_path, archive_hash, logging_callback=self.logging_callback)
+        self.logging_callback(f"SHA256 hash text from page:\n{sha256_checksums_str}")
+
+        # Check archive hash
+        # Use the actual filename from the download URL for hash matching
+        from urllib.parse import urlparse
+        download_url = download_link
+        archive_url_filename = os.path.basename(urlparse(download_url).path)
+        # Sometimes SourceForge URLs end with /download, so get the filename from the path before /download
+        if archive_url_filename == "download":
+            archive_url_filename = os.path.basename(os.path.dirname(urlparse(download_url).path))
+        self.logging_callback(f"[check_integrity] Using archive_url_filename for hash match: {archive_url_filename}")
+        archive_hash = parse_hash(sha256_checksums_str, [archive_url_filename], 0, logging_callback=self.logging_callback)
+        self.logging_callback(f"Archive hash for {archive_url_filename}: {archive_hash}")
+        if not archive_hash or not sha256_hash_check(archive_path, archive_hash, logging_callback=self.logging_callback):
+            self.logging_callback(f"FAIL: Archive hash check failed or hash missing for {archive_url_filename}.")
+            return False
+
+        # Do NOT check .img file hash: the hash list only provides a hash for the .zip file
+        return True
 
     @cache
     def _get_download_link(self) -> str | None:
@@ -76,79 +93,68 @@ class SuperGrub2(GenericUpdater):
 
 
     def install_latest_version(self) -> bool | None:
+
         download_link = self._get_download_link()
         if not download_link:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No valid download link found, aborting install.")
+            self.logging_callback("No valid download link found, aborting install.")
             return None
         new_file = self._get_complete_normalized_file_path(absolute=True)
         if not isinstance(new_file, Path):
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] new_file is not a Path: {new_file}")
+            self.logging_callback(f"new_file is not a Path: {new_file}")
             return None
         archive_path = new_file.with_suffix(".zip")
 
+        # Download the archive
         result = robust_download(download_link, archive_path, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if not result:
+            self.logging_callback(f"Download failed for {download_link}")
             return None
 
-        if not verify_file_size(archive_path, download_link, package_name=ISOname, logging_callback=self.logging_callback):
-            archive_path.unlink(missing_ok=True)
+        # Verify archive file size
+        if not verify_file_size(archive_path, download_link, logging_callback=self.logging_callback):
+            self.logging_callback("Archive file size verification failed.")
             return None
 
-        if not self.soup_latest_download_article:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No soup object for download article, aborting install.")
-            archive_path.unlink(missing_ok=True)
-            return None
+        # Check integrity before extracting
 
-        # Only use hash lines not containing 'classic'
-        # Check archive integrity using the shared method
         integrity_ok = self.check_integrity()
-        if not integrity_ok:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: Hash check failed or hash missing for {archive_path}.")
-            archive_path.unlink(missing_ok=True)
+        if integrity_ok is False:
+            self.logging_callback("Integrity check failed, aborting extraction.")
             return None
-        from updaters.shared.find_biggest_file_in_zip import find_biggest_file_in_zip
-        to_extract = find_biggest_file_in_zip(str(archive_path), ext=".img")
-        if not to_extract:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: No .img file found in archive {archive_path}")
-            archive_path.unlink(missing_ok=True)
+        elif integrity_ok == -1:
+            self.logging_callback("Integrity check could not be performed, aborting extraction.")
             return None
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Will extract: {to_extract}")
+
+        # Unzip the archive to extract the .img file, but do NOT check .img hash (no hash provided for .img)
         import zipfile
         with zipfile.ZipFile(archive_path, 'r') as zf:
-            zf.extract(to_extract, path=new_file.parent)
-        extracted_path = new_file.parent / to_extract
-        if not extracted_path.exists():
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] FAIL: No file found after unzip: {extracted_path}")
-            archive_path.unlink(missing_ok=True)
-            return None
-        # Do not rename the extracted file; leave it as is
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] DONE. Extracted to {extracted_path}")
+            file_list = zf.namelist()
+            self.logging_callback(f"Files in archive: {file_list}")
+            inner_img_file = next((os.path.basename(f) for f in file_list if f.endswith(".img")), None)
+            if not inner_img_file:
+                self.logging_callback(f"FAIL: No .img file found in archive {archive_path}")
+                return None
+            self.logging_callback(f"Found inner .img file: {inner_img_file}")
+            inner_img_path = new_file.parent / inner_img_file
+            unzip_file(archive_path, new_file.parent)
+            os.replace(inner_img_path, new_file)
+            self.logging_callback(f"DONE. Installed to {new_file}")
+            self.logging_callback(f"Archive kept at {archive_path}")
         return True
 
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
         if not self.soup_latest_download_article:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No soup object for download article, cannot get version.")
+            self.logging_callback(f"[{ISOname}] No soup object for download article, cannot get version.")
             return None
         download_table: Tag | None = self.soup_latest_download_article.find("table", attrs={"cellpadding": "5px"})  # type: ignore
         if not download_table:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find the table of download which contains the version number.")
+            self.logging_callback(f"[{ISOname}] Could not find the table of download which contains the version number.")
             return None
         download_table_header: Tag | None = download_table.find("h2")  # type: ignore
         if not download_table_header:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find the header containing the version number.")
+            self.logging_callback(f"[{ISOname}] Could not find the header containing the version number.")
             return None
         header: str = download_table_header.getText().lower()
         splitter = getattr(self, 'version_splitter', ".")

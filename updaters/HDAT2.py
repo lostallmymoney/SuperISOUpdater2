@@ -48,14 +48,14 @@ class HDAT2(GenericUpdater):
         elif self.edition == "diskette":
             soup = self._find_in_table([version_str, "HDAT2IMG"], ["ISO", "EXE"])
         else:
-            self.logging_callback(f"[{ISOname}] Edition {self.edition} is not implemented yet.")
+            self.logging_callback(f"Edition {self.edition} is not implemented yet.")
             return None
         if not soup:
-            self.logging_callback(f"[{ISOname}] Could not find table row for edition {self.edition} and version {version_str}.")
+            self.logging_callback(f"Could not find table row for edition {self.edition} and version {version_str}.")
             return None
         a_tag = soup.find("a", href=True)
         if not a_tag:
-            self.logging_callback(f"[{ISOname}] Could not find HTML tag containing download link.")
+            self.logging_callback(f"Could not find HTML tag containing download link.")
             return None
         return urljoin(DOMAIN, a_tag["href"])  # type: ignore
 
@@ -72,29 +72,29 @@ class HDAT2(GenericUpdater):
         elif self.edition == "diskette":
             soup = self._find_in_table([version_str, "HDAT2IMG"])
         else:
-            self.logging_callback(f"[{ISOname}] Edition {self.edition} is not implemented yet.")
+            self.logging_callback(f"Edition {self.edition} is not implemented yet.")
             return -1
         if not soup:
-            self.logging_callback(f"[{ISOname}] Could not find table row for edition {self.edition} and version {version_str}.")
+            self.logging_callback(f"Could not find table row for edition {self.edition} and version {version_str}.")
             return -1
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
         if download_link is None or not isinstance(local_file, Path):
             return -1
-        if not verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, download_link, logging_callback=self.logging_callback):
             return False
         tag_with_hash = soup.find(lambda tag: "MD5=" in tag.text)
         if not tag_with_hash:
-            self.logging_callback(f"[{ISOname}] Could not find HTML tag containing MD5 hash; skipping integrity check.")
+            self.logging_callback(f"Could not find HTML tag containing MD5 hash; skipping integrity check.")
             return -1
         md5_raw = parse_hash(tag_with_hash.text, ["MD5=", version_str], -1, logging_callback=self.logging_callback)
         md5_sum = md5_raw.replace("MD5=", "").strip() if md5_raw else None
         if not md5_sum:
-            self.logging_callback(f"[{ISOname}] Could not parse MD5 hash; skipping integrity check.")
+            self.logging_callback(f"Could not parse MD5 hash; skipping integrity check.")
             return -1
         result = md5_hash_check(local_file, md5_sum, logging_callback=self.logging_callback)
         if not result:
-            self.logging_callback(f"[{ISOname}] Hash check failed for file: {local_file}")
+            self.logging_callback(f"Hash check failed for file: {local_file}")
         return result
 
     @cache
@@ -103,7 +103,7 @@ class HDAT2(GenericUpdater):
             return None
         version_tag = self.soup_download_page.find("font", {"color": "blue"})
         if not version_tag:
-            self.logging_callback(f"[{ISOname}] Could not find the HTML tag containing the version number.")
+            self.logging_callback(f"Could not find the HTML tag containing the version number.")
             return None
         version_text = version_tag.get_text(strip=True)
         return self._str_to_version(
@@ -119,7 +119,7 @@ class HDAT2(GenericUpdater):
             row_name_doesnt_contain = []
         s: Tag | None = self.soup_download_page.find("table", attrs={"bgcolor": "#B3B3B3"})  # type: ignore
         if not s:
-            self.logging_callback(f"[{ISOname}] Could not find the table containing download information.")
+            self.logging_callback(f"Could not find the table containing download information.")
             return None
         for tr in s.find_all("tr"):
             text = tr.getText()
@@ -127,5 +127,5 @@ class HDAT2(GenericUpdater):
                 continue
             if all(string in text for string in row_name_contains):
                 return tr
-        self.logging_callback(f"[{ISOname}] Failed to find value in the table.")
+        self.logging_callback(f"Failed to find value in the table.")
         return None

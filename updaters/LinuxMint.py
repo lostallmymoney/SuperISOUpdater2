@@ -48,14 +48,13 @@ class LinuxMint(GenericUpdater):
             if not hasattr(self, "file_path") and not isinstance(self.file_path, Path):
                 local_file = self.file_path
                 return False
-                
             else:
                 return False
         download_link = self._get_download_link()
         if download_link is None:
             return False
         # First, verify file size
-        if not verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, download_link, logging_callback=self.logging_callback):
             return False
         # Then, check remote integrity (hash)
         latest_version = self._get_latest_version()
@@ -76,7 +75,7 @@ class LinuxMint(GenericUpdater):
     @cache
     def _get_latest_version(self) -> list[str] | None:
         if self.soup_download_page is None:
-            self.logging_callback(f"[{ISOname}] Download page soup is None, cannot parse download links.")
+            self.logging_callback(f"Download page soup is None, cannot parse download links.")
             return None
         download_a_tags = list(self.soup_download_page.find_all("a", href=True))
         local_version = self._get_local_version()

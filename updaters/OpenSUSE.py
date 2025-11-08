@@ -47,13 +47,13 @@ class OpenSUSE(GenericUpdater):
     def check_integrity(self) -> bool | int | None:
         file = self._get_complete_normalized_file_path(absolute=True)
         if not isinstance(file, Path):
-            self.logging_callback(f"[{ISOname}] File path is not a valid Path object for integrity check.")
+            self.logging_callback("File path is not a valid Path object for integrity check.")
             return -1
         link = self._get_download_link()
         if not link:
-            self.logging_callback(f"[{ISOname}] Could not determine download link for integrity check.")
+            self.logging_callback("Could not determine download link for integrity check.")
             return -1
-        if not verify_file_size(file, link, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(file, link, logging_callback=self.logging_callback):
             return False
         # Use check_remote_integrity for hash check
         return check_remote_integrity(

@@ -30,11 +30,11 @@ class HirensBootCDPE(GenericUpdater):
     def _get_download_link(self) -> str | None:
         download_tag: Tag | None = self._find_in_table("Filename")
         if not download_tag:
-            self.logging_callback(f"[{ISOname}] Failed to find the Tag containing the download link.")
+            self.logging_callback(f"Failed to find the Tag containing the download link.")
             return None
         href_attributes = download_tag.find_all(href=True)
         if not href_attributes:
-            self.logging_callback(f"[{ISOname}] No download link found in the Tag.")
+            self.logging_callback(f"No download link found in the Tag.")
             return None
         href = href_attributes[0].get("href")
         return str(href) if isinstance(href, str) else None
@@ -44,31 +44,30 @@ class HirensBootCDPE(GenericUpdater):
         iso_url = self._get_download_link()
         if not isinstance(local_file, Path) or iso_url is None:
             return -1
-        if not verify_file_size(local_file, iso_url, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, iso_url, logging_callback=self.logging_callback):
             return False
         sha256_tag = self._find_in_table("SHA-256")
         if not sha256_tag or not sha256_tag.getText():
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not find or extract SHA-256 hash in the download page.")
+            self.logging_callback(f"Could not find or extract SHA-256 hash in the download page.")
             return -1
         sha256_val = sha256_tag.getText()
-        return sha256_hash_check(local_file, sha256_val, package_name=ISOname, logging_callback=self.logging_callback)
+        return sha256_hash_check(local_file, sha256_val, logging_callback=self.logging_callback)
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
         if self.soup_download_page is None:
-            self.logging_callback(f"[{ISOname}] Download page not loaded; cannot extract version information.")
+            self.logging_callback(f"Download page not loaded; cannot extract version information.")
             return None
         s: Tag | None = self.soup_download_page.find(
             "div", attrs={"class": "post-content"}
         )  # type: ignore
         if not s:
-            self.logging_callback(f"[{ISOname}] Could not find the div containing version information.")
+            self.logging_callback(f"Could not find the div containing version information.")
             return None
 
         s = s.find("span")  # type: ignore
         if not s:
-            self.logging_callback(f"[{ISOname}] Could not find the span containing the version information.")
+            self.logging_callback(f"Could not find the span containing the version information.")
             return None
 
         return self._str_to_version(
@@ -80,22 +79,11 @@ class HirensBootCDPE(GenericUpdater):
     def _find_in_table(self, row_name_contains: str) -> Tag | None:
         """
         Find the HTML Tag containing specific information in the download page table.
-
-        Args:
-            row_name_contains (str): A string that identifies the row in the table.
-
-        Returns:
-            Tag | None: The HTML Tag containing the desired information, or None if not found.
-
-        Raises:
-            LookupError: If the table or the specified row_name_contains is not found in the download page.
         """
         s: Tag | None = self.soup_download_page.find("div", attrs={"class": "table-1"})  # type: ignore
-
         if not s:
-            self.logging_callback(f"[{ISOname}] Could not find the table containing download information.")
+            self.logging_callback(f"Could not find the table containing download information.")
             return None
-
         next_is_result = False
         for tr in s.find_all("tr"):
             for td in tr.find_all("td"):
@@ -103,6 +91,5 @@ class HirensBootCDPE(GenericUpdater):
                     return td
                 if row_name_contains in td.getText():
                     next_is_result = True
-
-        self.logging_callback(f"[{ISOname}] Failed to find '{row_name_contains}' in the table.")
+        self.logging_callback(f"Failed to find '{row_name_contains}' in the table.")
         return None

@@ -34,7 +34,7 @@ class Manjaro(GenericUpdater):
         self.edition = edition.lower()
         file_path = folder_path / FILE_NAME
         super().__init__(file_path, *args, **kwargs)
-        resp = robust_get(DOWNLOAD_PAGE_URL, retries=self.retries_count, delay=1)
+        resp = robust_get(DOWNLOAD_PAGE_URL, retries=self.retries_count, delay=1, logging_callback=self.logging_callback)
         if resp is None:
             self.file_info_json = None
             return
@@ -49,8 +49,7 @@ class Manjaro(GenericUpdater):
 
     def check_integrity(self) -> bool | int | None:
         if not self.file_info_json:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] No file info JSON loaded.")
+            self.logging_callback(f"No file info JSON loaded.")
             return False
         checksum_url = self.file_info_json["releases"][self.edition]["checksum"]
         if checksum_url.endswith(".sha512"):
@@ -63,18 +62,17 @@ class Manjaro(GenericUpdater):
             hash_type = "sha256"  # fallback
         local_file = self._get_complete_normalized_file_path(absolute=True)
         if not isinstance(local_file, Path):
-            return -1  
+            return -1
         local_file = Path(local_file)
         download_link = self._get_download_link()
         if download_link is None:
             return -1
-        if not verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, download_link, logging_callback=self.logging_callback):
             return False
         # Hash check
         resp = robust_get(checksum_url, retries=3, delay=1, logging_callback=self.logging_callback)
         if resp is None:
-            if self.logging_callback:
-                self.logging_callback(f"[{ISOname}] Could not fetch checksum file: robust_get failed")
+            self.logging_callback(f"Could not fetch checksum file: robust_get failed")
             return -1
         hash_file = resp.text
         hash_val = parse_hash(hash_file, [], 0, logging_callback=self.logging_callback)
@@ -83,7 +81,7 @@ class Manjaro(GenericUpdater):
         if hash_type == "sha512":
             return sha512_hash_check(local_file, hash_val, logging_callback=self.logging_callback)
         elif hash_type == "sha256":
-            return sha256_hash_check(local_file, hash_val, package_name=ISOname, logging_callback=self.logging_callback)
+            return sha256_hash_check(local_file, hash_val, logging_callback=self.logging_callback)
         elif hash_type == "md5":
             return md5_hash_check(local_file, hash_val, logging_callback=self.logging_callback)
         return -1
@@ -92,11 +90,10 @@ class Manjaro(GenericUpdater):
     def _get_latest_version(self) -> list[str] | None:
         download_link = self._get_download_link()
         if not download_link:
-            self.logging_callback(f"[{ISOname}] Could not get download link")
+            self.logging_callback(f"Could not get download link")
             return None
         latest_version_regex = re.search(r"manjaro-\w+-(.+?)-", download_link)
         if latest_version_regex:
             return self._str_to_version(latest_version_regex.group(1))
-        if self.logging_callback:
-            self.logging_callback(f"[{ISOname}] Could not find the latest available version")
+        self.logging_callback(f"Could not find the latest available version")
         return None

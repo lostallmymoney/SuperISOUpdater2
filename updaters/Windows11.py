@@ -25,28 +25,31 @@ class Windows11(GenericUpdater):
     def check_integrity(self) -> bool | int | None:
         """
         Windows 11 ISO integrity check: verify file size and SHA256 hash.
+        All retry logic is handled in fetch_windows_iso_hash.
         """
         local_file = self._get_complete_normalized_file_path(absolute=True)
         download_link = self._get_download_link()
         if not isinstance(local_file, Path) or download_link is None:
             return -1
         # First, verify file size
-        size_ok = verify_file_size(local_file, download_link, package_name=ISOname, logging_callback=self.logging_callback)
+        size_ok = verify_file_size(local_file, download_link, logging_callback=self.logging_callback)
         if not size_ok:
             return size_ok
-        # Then, verify SHA256 hash
+        # Then, verify SHA256 hash (robustness handled in fetch_windows_iso_hash)
         from updaters.shared.sha256_hash_check import sha256_hash_check
         search_label = f"{self.lang} 64-bit"
         url = "https://www.microsoft.com/en-us/software-download/windows11"
-        expected_hash = fetch_windows_iso_hash(search_label, url, self.headers, logging_callback=self.logging_callback)
+        try:
+            expected_hash = fetch_windows_iso_hash(search_label, url, self.headers, logging_callback=self.logging_callback)
+        except Exception as e:
+            self.logging_callback(f"Unexpected error fetching SHA256 hash: {e}")
+            return -1
         if not expected_hash:
-            if self.logging_callback:
-                self.logging_callback(f"[Windows11] Could not fetch expected SHA256 hash for {search_label}")
-            return None
+            self.logging_callback(f"Could not fetch expected SHA256 hash for {search_label}")
+            return -1
         hash_ok = sha256_hash_check(local_file, expected_hash, logging_callback=self.logging_callback)
         if not hash_ok:
-            if self.logging_callback:
-                self.logging_callback(f"[Windows11] SHA256 hash check failed for {local_file}")
+            self.logging_callback(f"SHA256 hash check failed for {local_file}")
             return False
         return True
 
@@ -128,7 +131,21 @@ class Windows11(GenericUpdater):
 
     @cache
     def _get_download_link(self) -> str | None:
-        return WindowsConsumerDownloader.windows_consumer_download("11", self.lang)
+        import time
+        max_retries = 5
+        for attempt in range(1, max_retries + 1):
+            try:
+                link = WindowsConsumerDownloader().windows_consumer_download("11", self.lang)
+                if link:
+                    return link
+            except Exception as e:
+                self.logging_callback(f"[Windows11] Exception in windows_consumer_download: {e}")
+            if attempt < max_retries:
+                self.logging_callback(f"[Windows11] Could not get download link (attempt {attempt}/{max_retries}), retrying...")
+                time.sleep(5)
+            else:
+                self.logging_callback(f"[Windows11] Could not get download link after {max_retries} attempts, giving up.")
+                return None
 
     @cache
     def _get_latest_version(self) -> list[str] | None:
@@ -143,6 +160,5 @@ class Windows11(GenericUpdater):
                 return None
             return version
         except Exception as e:
-            if self.logging_callback:
-                self.logging_callback(f"[Windows11] Exception while parsing version: {e}")
+            self.logging_callback(f"Exception while parsing version: {e}")
             return None

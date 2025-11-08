@@ -45,13 +45,13 @@ class KaliLinux(GenericUpdater):
     def check_integrity(self, *args, **kwargs) -> bool | int | None:
         local_file = self._get_complete_normalized_file_path(absolute=True)
         if not isinstance(local_file, Path):
-            self.logging_callback(f"[{ISOname}] Invalid local file path: {local_file}")
+            self.logging_callback(f"Invalid local file path: {local_file}")
             return -1
         iso_url = self._get_download_link()
         if iso_url is None:
             return -1
         # First, verify file size
-        if not verify_file_size(local_file, iso_url, package_name=ISOname, logging_callback=self.logging_callback):
+        if not verify_file_size(local_file, iso_url, logging_callback=self.logging_callback):
             return False
         # Then, check remote integrity (hash)
         sha256_url = urljoin(DOWNLOAD_PAGE_URL, "SHA256SUMS")
@@ -68,12 +68,12 @@ class KaliLinux(GenericUpdater):
     @cache
     def _get_latest_version(self) -> list[str] | None:
         if not self.html_content:
-            self.logging_callback(f"[{ISOname}] No HTML content to parse for version.")
+            self.logging_callback(f"No HTML content to parse for version.")
             return None
         # Use regex to find all hrefs in <a> tags
         hrefs = re.findall(r'<a[^>]+href=["\']([^"\'>]+)["\']', self.html_content)
         if not hrefs:
-            self.logging_callback(f"[{ISOname}] Could not parse the download page for version.")
+            self.logging_callback(f"Could not parse the download page for version.")
             return None
         # Try to find the first href that matches the expected ISO pattern
         pattern = re.compile(r'kali-linux-(.+?)-' + re.escape(self.edition) + r'-amd64\.iso')
@@ -83,5 +83,5 @@ class KaliLinux(GenericUpdater):
                 parts = href.split("-")
                 if len(parts) >= 3:
                     return self._str_to_version(parts[2])
-        self.logging_callback(f"[{ISOname}] Could not determine the latest version string.")
+        self.logging_callback(f"Could not determine the latest version string.")
         return None
