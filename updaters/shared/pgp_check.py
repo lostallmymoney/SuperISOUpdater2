@@ -1,3 +1,5 @@
+from updaters.shared.resolve_file_case import resolve_file_case
+from pathlib import Path
 import pgpy
 import mmap
 from pathlib import Path
@@ -33,11 +35,14 @@ def verify_tails_mmap_bytes(file_path: Path, sig_data: bytes, key_data: bytes, l
     GREEN = '\033[92m'
     RED = '\033[91m'
     RESET = '\033[0m'
-    # Open and memory-map the ISO file
-    with open(str(file_path), "rb") as f:
+    local_file = resolve_file_case(file_path)
+    if not local_file:
+        logging_callback(f"[pgp_check] File not found for PGP check: {file_path}")
+        return False
+    with open(str(local_file), "rb") as f:
         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as file_mmap:
             if not key.verify(file_mmap[:], sig):
-                logging_callback(f"{RED}PGP signature verification FAILED for {file_path}{RESET}")
+                logging_callback(f"{RED}PGP signature verification FAILED for {local_file}{RESET}")
                 return False
-    logging_callback(f"{GREEN}PGP signature verification OK for {file_path}{RESET}")
+    logging_callback(f"{GREEN}PGP signature verification OK for {local_file}{RESET}")
     return True

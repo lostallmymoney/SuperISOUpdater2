@@ -1,3 +1,5 @@
+from pathlib import Path
+from updaters.shared.resolve_file_case import resolve_file_case
 import hashlib
 from pathlib import Path
 
@@ -8,8 +10,12 @@ def hash_check(file: Path, hash_value: str, logging_callback, hash_type: str = "
     Calculate the hash of a given file and compare it with a provided hash value.
     Supports 'sha256', 'sha1', 'md5', etc.
     """
+    local_file = resolve_file_case(file)
+    if not local_file:
+        logging_callback(f"[hash_check] File not found for hash check: {file}")
+        return False
     h = getattr(hashlib, hash_type)()
-    with open(file, "rb") as f:
+    with open(local_file, "rb") as f:
         chunk_count = 0
         mb_interval = 500
         mb_per_chunk = READ_CHUNK_SIZE / (1024*1024)

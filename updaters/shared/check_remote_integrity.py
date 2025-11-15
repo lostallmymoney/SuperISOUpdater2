@@ -1,3 +1,4 @@
+from updaters.shared.resolve_file_case import resolve_file_case
 from updaters.shared.robust_get import robust_get
 from updaters.shared.parse_hash import parse_hash
 from updaters.shared.sha256_hash_check import hash_check
@@ -12,7 +13,8 @@ def check_remote_integrity(hash_url, local_file, hash_type, parse_hash_args, log
     try:
         # Return None if the file does not exist
         from pathlib import Path
-        if not Path(local_file).is_file():
+        local_file = resolve_file_case(Path(local_file))
+        if not local_file:
             logging_callback(f"[check_remote_integrity] File not found: {local_file}")
             return None
         resp = robust_get(hash_url, delay=3, retries=10, logging_callback=logging_callback)

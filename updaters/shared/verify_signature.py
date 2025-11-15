@@ -1,3 +1,5 @@
+from updaters.shared.resolve_file_case import resolve_file_case
+from pathlib import Path
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, ec
 from cryptography.exceptions import InvalidSignature
@@ -16,7 +18,8 @@ def verify_opnsense_signature(pubkey_bytes, sig_bytes, img_file_path, logging_ca
     pubkey = serialization.load_pem_public_key(pubkey_bytes)
     signature = base64.b64decode(sig_bytes.strip())
     import os
-    if not os.path.exists(img_file_path):
+    local_file = resolve_file_case(Path(img_file_path))
+    if not local_file:
         logging_callback(f"[verify_signature] Image file does not exist: {img_file_path}")
         return None
     try:

@@ -1,3 +1,5 @@
+from pathlib import Path
+from updaters.shared.resolve_file_case import resolve_file_case
 import hashlib
 from pathlib import Path
 
@@ -7,7 +9,11 @@ def sha1_hash_check(file: Path, hash: str, logging_callback) -> bool:
     """
     Calculate the SHA-1 hash of a given file and compare it with a provided hash value.
     """
-    with open(file, "rb") as f:
+    local_file = resolve_file_case(file)
+    if not local_file:
+        logging_callback(f"[sha1_hash_check] File not found for hash check: {file}")
+        return False
+    with open(local_file, "rb") as f:
         file_hash = hashlib.sha1()
         while chunk := f.read(READ_CHUNK_SIZE):
             file_hash.update(chunk)
