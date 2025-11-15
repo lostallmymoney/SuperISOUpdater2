@@ -38,16 +38,19 @@ def run_updater(updater: GenericUpdater):
             result = updater.install_latest_version()
             if result:
                 logging.info(f"[{installer_for}] Update completed successfully.")
+                return True
             else:
                 if attempt < 5:
                     logging.info(f"[{installer_for}] File CORRUPTED after install. Retrying...")
-                    run_local(attempt + 1)
+                    return run_local(attempt + 1)
                 else:
                     logging.info(f"[{installer_for}] File CORRUPTED after install (integrity still fails). Not retrying further.")
+                    return False
         except Exception:
             logging.exception(f"[{installer_for}] An error occurred while updating. See traceback below.")
+            return False
 
-    run_local()
+    return run_local()
     
 
 updaters_list: list[GenericUpdater] = []
@@ -197,14 +200,6 @@ def main():
 
 
     global updaters_list
-    # Log all updaters and their edition/lang after stacking (optional, can be commented out if not needed)
-    # print("--- Enabled updaters found (class, edition, lang) ---")
-    # for updater in updaters_list:
-    #     cls_name = updater.__class__.__name__
-    #     edition = getattr(updater, "edition", None)
-    #     lang = getattr(updater, "lang", None)
-    #     print(f"{cls_name} | edition: {edition} | lang: {lang}")
-    # print("--- End of updaters list ---")
 
     # After updaters are accumulated, filter them in parallel using 4 threads
     def check_and_filter(updater):
@@ -256,8 +251,19 @@ def main():
         print("--- End of updaters to download ---\n")
         print(f"Total: {len(to_download)} updaters would be downloaded.")
         return
+
+    # Track which updaters were actually updated (install_latest_version returned True)
+
+    # Use run_updater for update logic, then check integrity if update succeeded
     for updater in updaters_list:
-        run_updater(updater)
+        result = run_updater(updater)
+        if result:
+            integrity = updater.check_integrity()
+            status = "PASS" if integrity is True else "FAIL"
+            cls_name = updater.__class__.__name__
+            edition = getattr(updater, "edition", None)
+            lang = getattr(updater, "lang", None)
+            print(f"[Integrity {status}] {cls_name} | edition: {edition} | lang: {lang}")
 
     logging.debug("Finished execution")
 
