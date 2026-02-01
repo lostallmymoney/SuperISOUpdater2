@@ -87,8 +87,9 @@ editions = ["KDE"]
 [OperatingSystems.Linux.KaliLinux]
 enabled = true
 # Available editions:
-# "installer", "installer-netinst", "installer-purple", "live"
-editions = ["installer", "live"]
+#"installer-amd64", "installer-everything-amd64", "installer-arm64", "installer-netinst-amd64",
+#"live-everything-amd64", "live-amd64", "live-arm64"
+editions = ["installer-amd64", "live-everything-amd64"]
 
 [OperatingSystems.Linux.LinuxMint]
 enabled = true
