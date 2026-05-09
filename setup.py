@@ -43,10 +43,10 @@ setup(
     package_data={"sisou2_assets": ["config.toml.default"]},
     python_requires=">=3.10, <4",
     install_requires=[
-        "beautifulsoup4==4.12.2",
-        "requests==2.31.0",
-        "tqdm==4.65.0",
-        "PGPy13==0.6.1rc1",
+        "beautifulsoup4>=4.12.2",
+        "requests>=2.31.0",
+        "tqdm>=4.65.0",
+        "PGPy13>=0.6.1rc1",
     ],  # Optional
     # extras_require={
     #     "dev": [""],
