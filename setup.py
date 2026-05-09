@@ -14,7 +14,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="sisou2",  # Required
-    version="2.0.0",  # Required
+    version="2.0.2",  # Required
     description="A powerful tool to conveniently download all of your ISO files!",  # Optional
     long_description=long_description,  # Optional
     long_description_content_type="text/markdown",  # Optional
