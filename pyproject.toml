@@ -7,8 +7,13 @@ name = "sisou2"
 version = "2.2.2"
 description = "SISOU2 - ISO updater tool"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.8"
 
 authors = [
   { name = "lostallmymoney" }
 ]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/lostallmymoney/SuperISOUpdater2"
