@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sisou2"
+version = "2.2.2"
+description = "SISOU2 - ISO updater tool"
+readme = "README.md"
+requires-python = ">=3.13"
+
+authors = [
+  { name = "lostallmymoney" }
+]
