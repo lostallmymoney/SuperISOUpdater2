@@ -1,0 +1,48 @@
+from updaters.shared.resolve_file_case import resolve_file_case
+from pathlib import Path
+import pgpy
+import mmap
+from pathlib import Path
+from typing import Union
+
+def verify_tails_mmap_bytes(file_path: Path, sig_data: bytes, key_data: bytes, logging_callback) -> bool:
+    """
+    Verify a Tails ISO using a memory-mapped ISO, a signature in bytes, and a PGP key in bytes or string.
+
+    Args:
+        iso_mmap: Memory-mapped ISO file (mmap.mmap).
+        sig_data: Detached signature as bytes.
+        key_data: PGP signing key as bytes or ASCII-armored string.
+
+    Returns:
+        True if verification succeeds.
+
+    Raises:
+        ValueError if signature verification fails.
+    """
+
+    # Load the PGP signing key from bytes or string
+    if isinstance(key_data, bytes):
+        key_str = key_data.decode('utf-8')
+    else:
+        key_str = key_data
+    key_obj = pgpy.PGPKey.from_blob(key_str)
+    key = key_obj[0] if isinstance(key_obj, tuple) else key_obj
+
+    # Load the detached signature from bytes
+    sig = pgpy.PGPSignature.from_blob(sig_data)
+
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    RESET = '\033[0m'
+    local_file = resolve_file_case(file_path)
+    if not local_file:
+        logging_callback(f"[pgp_check] File not found for PGP check: {file_path}")
+        return False
+    with open(str(local_file), "rb") as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as file_mmap:
+            if not key.verify(file_mmap[:], sig):
+                logging_callback(f"{RED}PGP signature verification FAILED for {local_file}{RESET}")
+                return False
+    logging_callback(f"{GREEN}PGP signature verification OK for {local_file}{RESET}")
+    return True
