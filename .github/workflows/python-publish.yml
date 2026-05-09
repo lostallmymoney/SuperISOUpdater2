@@ -31,7 +31,7 @@ jobs:
       run: rm -rf dist build *.egg-info
 
     - name: Build package
-      run: python -m build --no-isolation
+      run: python -m build
 
     - name: Verify build output
       run: ls -lah dist/
