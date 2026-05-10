@@ -35,19 +35,20 @@ fi
 # Install the current project with pipx
 
 if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
-    PKG_NAME=$(python3 setup.py --name 2>/dev/null || basename "$PWD")
+    PKG_NAME="sisou2"
     APP_NAME="sisou2"
 
     echo "Removing previous pipx installation for $PKG_NAME..."
     pipx uninstall "$PKG_NAME" >/dev/null 2>&1 || true
     rm -rf "$HOME/.local/pipx/venvs/$PKG_NAME"
+    rm -rf "$HOME/.local/share/pipx/venvs/$PKG_NAME"
     rm -f "$HOME/.local/bin/$APP_NAME"
 
     echo "Removing local build artifacts..."
     cleanup_build_artifacts
 
     echo "Installing the current project in a clean isolated pipx environment..."
-    pipx install . || {
+    pipx install --force . || {
         echo "pipx install failed."
         cleanup_build_artifacts
         exit 1
@@ -61,7 +62,7 @@ if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
         }
     fi
     cleanup_build_artifacts
-    echo "Installation complete. Use the command provided by your package to run it."
+    echo "Installation complete. Run it with: $APP_NAME"
     pipx ensurepath --force
 else
     echo "No setup.py or pyproject.toml found. Please run this script from your project root."
