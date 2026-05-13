@@ -7,7 +7,7 @@ from updaters.shared.verify_file_size import verify_file_size
 from updaters.shared.sha256_hash_check import sha256_hash_check
 import json
 
-DOMAIN = "https://mirrors.edge.kernel.org"
+DOMAIN = "https://download.tails.net"
 DOWNLOAD_PAGE_URL = f"{DOMAIN}/tails/stable"
 FILE_NAME = "tails-amd64-[[VER]].img"
 PUB_KEY_URL = "https://tails.net/tails-signing.key"
